@@ -1,47 +1,54 @@
-=== POLARS -> AUTO LOOKER STUDIO (Existing Setup Extension) ===
+# POLARS -> LOOKER STUDIO
 
-SUDAH PUNYA: Rust + Polars environment + output/ folder
-SUDAH ADA DI PROJECT INI:
-- output/report.html
-- output/report_data.json
-- output/index.html
+Dokumentasi ini menjelaskan cara memakai project Rust + Polars yang sudah ada sebagai generator report lokal, lalu menghubungkannya ke Looker Studio dengan alur yang realistis.
 
-INGIN: cargo run -> output/report.html + report.json -> dashboard siap dibuka dari hasil report
-REQUIREMENT: edit output -> report ikut terbarui saat cargo run dijalankan ulang
+## Yang Sudah Ada
 
-CATATAN PENTING:
-- Looker Studio tidak punya alur resmi untuk membuat report baru langsung dari HTTP API seperti contoh pseudo-code yang dikirim.
-- Integrasi yang realistis untuk project ini adalah:
-	1. Rust + Polars menghasilkan HTML + JSON di output/
-	2. Jika butuh dashboard cloud, dorong data ke BigQuery atau Google Sheets
-	3. Looker Studio membaca BigQuery / Sheets sebagai data source
-	4. Setiap cargo run memperbarui data sumber, lalu dashboard refresh mengikuti source
+- Rust + Polars pipeline untuk audit, cleansing, dan visualisasi data.
+- Folder output/ untuk menyimpan hasil report.
+- Artefak yang sudah dihasilkan oleh pipeline:
+  - output/report.html
+  - output/index.html
+  - output/report_data.json
 
-RECOMMENDED FLOW UNTUK PROJECT INI:
-1. cargo run <folder-csv-atau-file-csv>
-2. audit.rs membaca CSV
-3. clean.rs membersihkan data
-4. viz.rs menulis output/report.html, output/index.html, dan output/report_data.json
-5. Jika perlu dashboard cloud, tambahkan step upload ke BigQuery atau Sheets
-6. Looker Studio dihubungkan ke source tersebut
+## Target Alur
 
-SKEMA EXTENSION YANG MASUK AKAL:
-- Tambah modul upload_to_bq jika project benar-benar akan dipakai ke BigQuery
-- Simpan metadata dataset di output/report_data.json
-- Biarkan report.html tetap jadi preview lokal yang cepat dibuka
-- Gunakan Looker Studio sebagai layer visualisasi cloud, bukan sebagai generator report lewat API langsung
+```text
+cargo run -> output/report.html + output/report_data.json -> report terbarui
+```
 
-README QUICKSTART:
-1. gcloud auth login
-2. cargo run -- data/PRSA_Data_20130301-20170228
+Kalau ingin dashboard cloud di Looker Studio, data source sebaiknya berasal dari BigQuery atau Google Sheets, bukan membuat report langsung lewat HTTP API.
+
+## Alur Yang Direkomendasikan
+
+1. Jalankan `cargo run` pada file CSV atau folder yang berisi CSV.
+2. `audit.rs` membaca dan memprofilkan data.
+3. `clean.rs` membersihkan data.
+4. `viz.rs` menulis output/report.html, output/index.html, dan output/report_data.json.
+5. Jika butuh dashboard cloud, upload hasil ke BigQuery atau Google Sheets.
+6. Hubungkan Looker Studio ke source tersebut.
+
+## Catatan Integrasi Looker Studio
+
+- Looker Studio tidak menyediakan alur resmi untuk membuat report baru secara langsung dari pseudo-code API seperti contoh awal.
+- Pola yang aman adalah menjadikan Rust + Polars sebagai data preparation layer.
+- Looker Studio dipakai sebagai layer visualisasi di atas BigQuery atau Google Sheets.
+- Jika output berubah dan `cargo run` dijalankan ulang, report lokal ikut terbarui.
+
+## Ekstensi Yang Masuk Akal
+
+- Tambah modul upload ke BigQuery jika dashboard cloud benar-benar dibutuhkan.
+- Simpan metadata data set di output/report_data.json.
+- Pertahankan output/report.html sebagai preview lokal yang cepat dibuka.
+- Gunakan GitHub Actions untuk menjalankan pipeline ulang saat file data berubah.
+
+## Quickstart
+
+1. `gcloud auth login`
+2. `cargo run -- data/PRSA_Data_20130301-20170228`
 3. Buka output/report.html atau output/index.html
-4. Jika data source cloud dipakai, refresh BigQuery/Sheets lalu buka dashboard Looker Studio
+4. Jika memakai data source cloud, refresh BigQuery atau Sheets lalu buka dashboard Looker Studio.
 
-AUTO-REFRESH WEBHOOK:
-- GitHub Actions dapat dipakai untuk menjalankan cargo run setiap kali CSV berubah
-- Hasilnya memperbarui output/report.html dan output/report_data.json
-- Jika BigQuery dipakai, langkah berikutnya adalah sinkronisasi dataset sebelum dashboard dibuka
+## Kesimpulan
 
-KESIMPULAN:
-- Project ini sudah siap sebagai local report generator.
-- Untuk Looker Studio live dashboard, jalur yang aman adalah via BigQuery atau Google Sheets, bukan lewat create report API langsung.
+Project ini sudah siap sebagai local report generator. Untuk Looker Studio live dashboard, jalur yang paling stabil adalah via BigQuery atau Google Sheets.
