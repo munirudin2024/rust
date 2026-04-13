@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 
 mod audit;
 mod clean;
+mod google_sheets;
+mod looker_auto;
 mod viz;
 
 /// Validate CLI input and ensure path exists.
@@ -88,7 +90,13 @@ fn print_banner() {
     println!();
 }
 
-fn print_final_summary(output_path: &str, json_path: &str, station_count: usize) {
+fn print_final_summary(
+    output_path: &str,
+    json_path: &str,
+    looker_path: &str,
+    google_sheets_url: Option<&str>,
+    station_count: usize,
+) {
     println!();
     println!(
         "{}",
@@ -97,6 +105,12 @@ fn print_final_summary(output_path: &str, json_path: &str, station_count: usize)
     println!("  {} Dataset  : {}", "".cyan(), station_count);
     println!("  {} HTML     : {}", "".cyan(), output_path);
     println!("  {} JSON     : {}", "".cyan(), json_path);
+    println!("  {} Looker   : {}", "".cyan(), looker_path);
+    println!(
+        "  {} Sheets   : {}",
+        "".cyan(),
+        google_sheets_url.unwrap_or("belum dikonfigurasi")
+    );
     println!();
     println!(
         "{}",
@@ -198,12 +212,33 @@ fn main() -> Result<()> {
     );
     let output_path = output_dir.join("html").join("report.html");
     let json_path = output_dir.join("html").join("report_data.json");
+    let looker_path = output_dir.join("looker_studio");
     viz::run_station_comparison(&station_summaries, output_dir)?;
+
+    let google_sheets_url = match google_sheets::sync_station_summaries_to_google_sheets(
+        &station_summaries,
+        output_dir,
+    ) {
+        Ok(status) => status.map(|s| s.spreadsheet_url),
+        Err(err) => {
+            eprintln!("  WARNING Google Sheets upload gagal: {err:#}");
+            None
+        }
+    };
 
     print_final_summary(
         &output_path.to_string_lossy(),
         &json_path.to_string_lossy(),
+        &looker_path.to_string_lossy(),
+        google_sheets_url.as_deref(),
         station_summaries.len(),
     );
+
+    tokio::runtime::Runtime::new()?.block_on(async {
+        if let Err(err) = looker_auto::deploy_to_looker().await {
+            println!("Looker optional: {}", err);
+        }
+    });
+
     Ok(())
 }

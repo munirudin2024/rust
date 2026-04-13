@@ -129,8 +129,15 @@ pub fn run_station_comparison(
 
     std::fs::write(html_dir.join("report_data.json"), &json)
       .context("failed to write html report_data.json")?;
-    std::fs::write(html_dir.join("report.html"), &html)
-      .context("failed to write html report.html")?;
+    std::fs::write(html_dir.join("report.generated.html"), &html)
+      .context("failed to write html report.generated.html")?;
+
+    // Preserve user-customized report.html across reruns.
+    let custom_report = html_dir.join("report.html");
+    if !custom_report.exists() {
+        std::fs::write(&custom_report, &html)
+            .context("failed to write initial html report.html")?;
+    }
 
     let index_html = build_report_index_html(summaries.len(), &html_dir);
     std::fs::write(output_root.join("index.html"), index_html)
@@ -164,6 +171,7 @@ fn cleanup_legacy_root_outputs(output_root: &Path) -> Result<()> {
 
 fn build_report_index_html(station_count: usize, html_dir: &Path) -> String {
     let html_report = html_dir.join("report.html");
+  let html_report_generated = html_dir.join("report.generated.html");
     let html_json = html_dir.join("report_data.json");
   let clean_csv_dir = Path::new("output").join("csv");
 
@@ -229,14 +237,15 @@ fn build_report_index_html(station_count: usize, html_dir: &Path) -> String {
   <div class="wrap">
     <section class="hero">
       <h1>Index Laporan Data</h1>
-      <p>{station_count} dataset / stasiun diproses pada run terakhir.</p>
+      <p>{station_count} dataset diproses pada run terakhir.</p>
     </section>
 
     <div class="grid">
       <section class="card">
         <h2>Laporan HTML</h2>
-        <div class="meta">Buka laporan HTML dan data JSON terbaru.</div>
-        <a class="btn" href="html/report.html">Buka report.html</a>
+        <div class="meta">`report.html` untuk versi custom kamu, `report.generated.html` untuk versi auto-generate pipeline.</div>
+        <a class="btn" href="html/report.html">Buka report.html (custom)</a>
+        <a class="btn secondary" href="html/report.generated.html">Buka report.generated.html</a>
         <a class="btn secondary" href="html/report_data.json">Buka report_data.json</a>
       </section>
 
@@ -251,10 +260,12 @@ fn build_report_index_html(station_count: usize, html_dir: &Path) -> String {
       <h2>Struktur yang Disarankan</h2>
       <div class="meta">
         <div><code>output/index.html</code> = pintu masuk.</div>
-        <div><code>output/html/report.html</code> = laporan terbaru yang selalu bisa dibuka cepat.</div>
+        <div><code>output/html/report.html</code> = laporan custom yang tidak ditimpa saat rerun.</div>
+        <div><code>output/html/report.generated.html</code> = laporan auto-generate terbaru dari pipeline.</div>
         <div><code>output/html/report_data.json</code> = data terbaru untuk integrasi.</div>
         <div><code>output/csv/&lt;nama_file_asli&gt;.csv</code> = hasil data yang sudah dibersihkan.</div>
         <div>File aktual sekarang:</div>
+        <div><code>{}</code></div>
         <div><code>{}</code></div>
         <div><code>{}</code></div>
         <div><code>{}</code></div>
@@ -264,6 +275,7 @@ fn build_report_index_html(station_count: usize, html_dir: &Path) -> String {
 </body>
 </html>"#,
         html_report.display(),
+        html_report_generated.display(),
         html_json.display(),
         clean_csv_dir.display(),
     )
