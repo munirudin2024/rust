@@ -1,0 +1,123 @@
+ID_Transaksi,Tanggal_Pembelian,Nama_Konsumen,Kota_Tujuan,Kategori_Produk,Nama_Barang,Harga_Satuan,Jumlah_Beli,Diskon_Rupiah,Metode_Pembayaran,Penilaian_Bintang
+TRX-1021,2021-02-14,Rizky Pratama,Jakarta,Kesehatan,Masker N95,50000,2,0,Transfer Bank,5
+TRX-1022,15/03/2022, dina mardiana ,BDG,Fashion,Blouse Wanita,Rp.150000,1,10000,COD,4
+TRX-1023,04-20-2023,Andi Saputra,Surabaya,Elektronik,Earphone TWS,250000,1,-,PayLater,
+TRX-1024,2024/05/11,Siti Aminah,Medan,Kecantikan,Sunscreen,85000,-2,5000,E-Wallet,5
+TRX-1025,2020-08-17,Budi Santoso,JKT,Elektrnik,Powerbank 10000mAh,120000,1,15000,Kartu Kredit,5
+TRX-1026,2025-01-01,,Makassar,Peralatan Rumah,Sapu Lantai,Rp. 35.000,2,null,COD,4
+TRX-1027,2021-09-09,Dewi Sartika,SBY,Otomotif,Oli Motor,45000,0,0,Transfer Bank,10
+TRX-1028,25/12/2022,Fajar Hidayat,Bandung,Fashion,Jaket Denim,IDR_250k,1,20000,eWallet,5
+TRX-1029,2023-07-17,Agus Wijaya,Semarang,Fashn,Celana Chino,100000,dua,0,Transfer Bank,3
+TRX-1030,2024-11-11,Maya Indah,Jakarta Selatan,Kesehatan,Vitamin C,30000,3,5000,paylater,5
+TRX-1031,2022-04-12,Hendra Setiawan,Jakarta,Elektronik,Smartwatch,350000,1,0,Transfer Bank,4
+TRX-1032,18/08/2021, ratna galih ,Surabaya,Fashion,Kemeja Flanel,Rp.120000,2,-,COD,5
+TRX-1033,02-28-2023,Kiki Amalia,Bandung,Kecantikan,Lipstik Matte,55000,1,10000,E-Wallet,
+TRX-1034,2024/09/09,Dedi Corbuzier,Medan,Elektrnik,Keyboard Mekanikal,450000,-1,0,PayLater,5
+TRX-1035,2025-03-15,Reza Rahadian,JKT,Otomotif,Helm Full Face,350000(IDR),1,25000,Kartu Kredit,4
+TRX-1025,2020-08-17,Budi Santoso,JKT,Elektronik,Powerbank 10000mAh,120000,1,15000,Kartu Kredit,5
+TRX-1036,2021-12-12,,Makassar,Peralatan Rumah,Panci Set,Rp. 250.000,2,null,COD,5
+TRX-1037,14/02/2022,Citra Kirana,SBY,Kesehatan,Hand Sanitizer,25000,0,5000,Transfer Bank,10
+TRX-1038,08-17-2023,Ahmad Dhani,Bandung,Fashion,Topi Baseball,IDR_50k,1,0,eWallet,3
+TRX-1039,2024/11/20,Mulan Jameela,Semarang,Fashn,Dress Bunga,150000,tiga,10000,Transfer Bank,4
+TRX-1040,2025-05-02,Iqbaal Ramadhan,Jakarta,Elektronik,Speaker Bluetooth,200000,2,0,E-Wallet,5
+TRX-1041,2020-10-10,Raisa Andriana,Yogyakarta,Kecantikan,Parfum Wanita,Rp.300000,1,50000,PayLater,4
+TRX-1042,11/11/2021, isyana sarasvati ,JKT,Fashion,Cardigan Rajut,85000,1000,0,COD,
+TRX-1043,12-12-2022,Ariel Noah,Bandung,Otomotif,Lampu LED Motor,45000,-3,null,E-Wallet,2
+TRX-1044,2023/04/18,Bunga Citra,Surabaya,Elektrnik,Kabel HDMI,35000,2,-,Transfer Bank,5
+TRX-1045,2024-01-25,,Medan,Kesehatan,Termometer Digital,Rp. 75.000,1,0,COD,4
+TRX-1045,2024-01-25,,Medan,Kesehatan,Termometer Digital,75000,1,0,COD,4
+TRX-1046,03/03/2025,Raffi Ahmad,Jakarta Selatan,Fashion,Sepatu Pantofel,IDR_450k,1,15000,Kartu Kredit,5
+TRX-1047,06-15-2020,Nagita Slavina,BDG,Peralatan Rumah,Blender,250000,0,0,Transfer Bank,10
+TRX-1048,2021/07/20,Atta Halilintar,SBY,Elektronik,Tripod HP,Rp.50000,2,10000,paylater,3
+TRX-1049,2022-09-09,Aurel Hermansyah,Makassar,Kecantikan,Foundation,120000,satu,0,E-Wallet,4
+TRX-1050,15/08/2023,Prilly Latuconsina,Semarang,Fashn,Kacamata Hitam,75000,1,null,COD,
+TRX-1051,10-28-2024,Angga Yunanda,Yogyakarta,Otomotif,Jas Hujan,65000,-1,-,PayLater,5
+TRX-1052,2025/11/11,Adhisty Zara,Jakarta,Elektrnik,Ring Light,Rp. 85.000,1,5000,Transfer Bank,4
+TRX-1053,2020-12-25, vino g bastian ,Bandung,Fashion,Celana Pendek,90000,3,0,eWallet,5
+TRX-1054,14/02/2021,,Surabaya,Peralatan Rumah,Kotak Makan,40000,2,10000,COD,3
+TRX-1055,05-05-2022,Jefri Nichol,JKT,Kesehatan,Kotak P3K,150000(IDR),1,0,Kartu Kredit,5
+TRX-1056,2023/06/06,Amanda Rawles,Medan,Kecantikan,Pensil Alis,IDR_25k,1000,-,E-Wallet,4
+TRX-1057,2024-08-08,Chelsea Islan,BDG,Elektronik,Kipas Angin Mini,45000,2,null,Transfer Bank,10
+TRX-1058,09/09/2025,Nicholas Saputra,SBY,Fashion,Dompet Kulit,Rp.200000,0,20000,paylater,5
+TRX-1059,11-11-2020,Dian Sastro,Makassar,Otomotif,Sarung Tangan Motor,35000,empat,0,COD,
+TRX-1060,2021/12/12,Joe Taslim,Semarang,Fashn,Tas Ransel,250000,-2,50000,PayLater,5
+TRX-1061,2022-01-01,Iko Uwais,Yogyakarta,Peralatan Rumah,Gantungan Baju,Rp. 15.000,5,0,E-Wallet,4
+TRX-1062,15/04/2023, luna maya ,Jakarta Selatan,Kesehatan,Minyak Kayu Putih,25000,2,-,Transfer Bank,5
+TRX-1063,08-08-2024,,Bandung,Elektrnik,Flashdisk 32GB,65000,1,5000,COD,3
+TRX-1064,2025/10/10,Anya Geraldine,Surabaya,Kecantikan,Maskara,IDR_80k,1,0,Kartu Kredit,5
+TRX-1065,2020-03-25,Gading Marten,JKT,Fashion,Kaos Kaki,15000,3,null,eWallet,4
+TRX-1066,06/06/2021,Gisel Anastasia,Medan,Otomotif,Semir Ban,Rp.40000,0,0,Transfer Bank,10
+TRX-1067,09-09-2022,Boy William,BDG,Elektronik,Webcam 1080p,300000,-1,-,PayLater,
+TRX-1068,2023/11/11,Ayu Ting Ting,SBY,Peralatan Rumah,Rak Sepatu,150000,1,15000,E-Wallet,5
+TRX-1069,2024-12-12,Ruben Onsu,Makassar,Fashn,Jam Tangan Pria,Rp. 250000,lima,0,COD,4
+TRX-1070,14/02/2025,Ivan Gunawan,Semarang,Kesehatan,Plester Luka,10000,5,0,Transfer Bank,5
+TRX-1071,05-05-2020,Deddy Mizwar,Yogyakarta,Kecantikan,Kapas Wajah,IDR_15k,2,null,paylater,4
+TRX-1064,2025/10/10,Anya Geraldine,Surabaya,Kecantikan,Maskara,80000,1,0,Kartu Kredit,5
+TRX-1072,2021/08/17,,Jakarta,Elektrnik,Mousepad Gaming,45000,1,5000,COD,3
+TRX-1073,2022-10-28, sule ,Bandung,Fashion,Sorban,Rp.50000,2,0,E-Wallet,5
+TRX-1074,12/12/2023,Andre Taulany,Surabaya,Otomotif,Pengharum Mobil,35000,0,-,Transfer Bank,10
+TRX-1075,03-15-2024,Nunung,Medan,Peralatan Rumah,Sikat WC,20000,-2,0,PayLater,
+TRX-1076,2025/07/20,Parto Patrio,JKT,Elektronik,Kalkulator,Rp. 60.000,1000,5000,Kartu Kredit,4
+TRX-1077,2020-09-09,Aziz Gagap,BDG,Kesehatan,Madu Murni,120000(IDR),1,null,eWallet,5
+TRX-1078,11/11/2021,Denny Cagur,SBY,Fashn,Ikat Pinggang,IDR_45k,1,0,COD,3
+TRX-1079,12-12-2022,Wendy Cagur,Makassar,Kecantikan,Sikat Gigi,15000,enam,-,Transfer Bank,4
+TRX-1080,2023/04/04,Narji,Semarang,Elektrnik,Kabel LAN 5m,30000,2,0,E-Wallet,5
+TRX-1081,2024-06-06,,Yogyakarta,Fashion,Batik Pria,Rp.150000,1,10000,paylater,4
+TRX-1082,17/08/2025, ananda omesh ,Jakarta Selatan,Otomotif,Kanebo,Rp. 20000,-1,0,COD,10
+TRX-1083,10-10-2020,Desta Mahendra,Bandung,Peralatan Rumah,Lap Pel,45000,1,null,Transfer Bank,
+TRX-1084,2021/11/11,Vincent Rompies,Surabaya,Kesehatan,Suplemen Diet,250000,0,25000,PayLater,5
+TRX-1085,2022-12-12,Enzy Storia,Medan,Elektronik,Lampu Belajar,IDR_85k,1,-,Kartu Kredit,4
+TRX-1086,14/02/2023,Hesti Purwadinata,JKT,Kecantikan,Cat Kuku,25000,2,0,eWallet,5
+TRX-1087,05-05-2024,Cak Lontong,BDG,Fashn,Piyama,120000,tujuh,10000,COD,3
+TRX-1088,2025/08/08,Abdel Achrian,SBY,Otomotif,Kunci L,Rp.35000,1,0,Transfer Bank,4
+TRX-1089,2020-09-09,,Makassar,Peralatan Rumah,Gelas Kaca Set,75000,1000,null,E-Wallet,5
+TRX-1090,10/10/2021,Temmy Rahadi,Semarang,Elektrnik,Antena TV,Rp. 100.000,-2,5000,paylater,10
+TRX-1091,11-11-2022, imel putri ,Yogyakarta,Kesehatan,Obat Masuk Angin,15000,3,0,COD,
+TRX-1092,2023/12/12,Revi Mariska,Jakarta,Fashion,Rok Plisket,65000(IDR),1,-,Transfer Bank,5
+TRX-1088,2025/08/08,Abdel Achrian,SBY,Otomotif,Kunci L,Rp.35000,1,0,Transfer Bank,4
+TRX-1093,2024-01-01,Roy Kiyoshi,Bandung,Kecantikan,Lulur Mandi,IDR_30k,2,0,PayLater,4
+TRX-1094,15/03/2025,Robby Purba,Surabaya,Elektronik,Microwave,850000,0,50000,Kartu Kredit,5
+TRX-1095,04-20-2020,Ayu Dewi,Medan,Fashn,Legging,Rp.40000,delapan,null,eWallet,3
+TRX-1096,2021/05/11,Melaney Ricardo,JKT,Otomotif,Wiper Mobil,75000,1,0,COD,4
+TRX-1097,2022-08-17,,BDG,Peralatan Rumah,Wajan Anti Lengket,150000,-1,10000,Transfer Bank,5
+TRX-1098,09/09/2023,Tyson Lynch,SBY,Kesehatan,Minyak Telon,Rp. 25.000,2,-,E-Wallet,10
+TRX-1099,10-10-2024, indra bekti ,Makassar,Elektrnik,Baterai AA,15000,1000,0,paylater,
+TRX-1100,2025/11/11,Aldila Jelita,Semarang,Fashion,Cardigan Crop,IDR_95k,1,5000,COD,5
+TRX-1101,2020-12-12,Irfan Hakim,Yogyakarta,Kecantikan,Eyeliner,45000,0,null,Transfer Bank,4
+TRX-1102,14/02/2021,Ramzi,Jakarta Selatan,Elektronik,Timbangan Digital,Rp.60000,1,0,PayLater,5
+TRX-1103,05-05-2022,Gilang Dirga,Bandung,Fashn,Kemeja Putih,120000(IDR),1,-,Kartu Kredit,3
+TRX-1104,2023/06/06,Arie Untung,Surabaya,Otomotif,Klakson Keong,55000,sembilan,0,eWallet,4
+TRX-1105,2024-08-08,,Medan,Peralatan Rumah,Sodet Silikon,Rp. 20000,2,null,COD,5
+TRX-1106,09/09/2025,Fenita Arie,JKT,Kesehatan,Koyo Cabe,10000,-2,0,Transfer Bank,10
+TRX-1107,10-10-2020,Teuku Wisnu,BDG,Elektrnik,Kipas Laptop,IDR_70k,1,5000,E-Wallet,
+TRX-1108,2021/11/11, shireen sungkar ,SBY,Fashion,Hijab Instan,35000,1000,-,paylater,5
+TRX-1109,2022-12-12,Zaskia Sungkar,Makassar,Kecantikan,Kapas Pembersih,Rp.15000,0,0,COD,4
+TRX-1110,15/01/2023,Irwansyah,Semarang,Elektronik,Kabel USB,25000,3,null,Transfer Bank,5
+TRX-1111,28-02-2024,Baim Wong,Yogyakarta,Fashn,Celana Jogger,95000,satu,0,PayLater,3
+TRX-1112,2025/04/18,Paula Verhoeven,Jakarta,Otomotif,Shampoo Mobil,Rp. 45.000,-1,10000,Kartu Kredit,4
+TRX-1113,2020-07-20,,Bandung,Peralatan Rumah,Pisau Dapur,30000,2,-,eWallet,5
+TRX-1114,17/08/2021,Raditya Dika,Surabaya,Kesehatan,Handuk Kecil,IDR_25k,0,0,COD,10
+TRX-1115,09-09-2022, anissa aziza ,Medan,Elektrnik,Lampu Tidur,50000(IDR),1,null,Transfer Bank,
+TRX-1116,2023/10/10,Kemal Palevi,JKT,Fashion,Jaket Parasut,Rp.180000,1000,15000,E-Wallet,5
+TRX-1117,2024-11-11,Uus,BDG,Kecantikan,Bedak Padat,85000,dua,0,paylater,4
+TRX-1001,2021-08-14,Budi Wijaya,Jakarta,Elektronik,Smartphone Android,Rp.2500000,1,50000,Transfer Bank,5
+TRX-1002,15/05/2022, siti aminah ,JKT,Fashion,Sepatu Kets Pria,Rp. 300000,2,0,COD,4
+TRX-1003,2023-11-11,Andi Pratama,Surabaya,Elektrnik,Laptop Gaming,15000000,1,-,E-Wallet,
+TRX-1004,12-12-2021,rina marliana,Bandung,Kecantikan,Lipstik Matte,55000,-3,10000,Kartu Kredit,5
+TRX-1003,2023-11-11,Andi Pratama,Surabaya,Elektronik,Laptop Gaming,15000000,1,-,E-Wallet,
+TRX-1005,2022/03/25,Joko Widodo,BDG,Fashn,Jaket Kulit Sintetis,IDR_250k,1,25000,Transfer Bank,3
+TRX-1006,2024-01-01,Clara Monica,SURABAYA,Elektronik,Mouse Wireless,150000,1000,0,PayLater,5
+TRX-1007,09/09/2023,Budi S.,Jakarta Selatan,Elektronik,Kabel Data Tipe C,25000,3,5000,paylater,4
+TRX-1008,2024-02-28,,Medan,kecantikan,Bedak Tabur,75000,1,0,COD,
+TRX-1009,03-15-2024,Anton ,Semarang,Fashion,Kaos Polos Katun,35000,dua,0,eWallet,2
+TRX-1010,2025-01-20,Dewi Lestari,Makassar,Kesehatan,Masker Medis,Rp. 20.000,5,null,Transfer Bank,5
+TRX-1011,2021-04-18,Fajar Hidayat,Yogyakarta,Elektronik,Flashdisk 64GB,95000,0,15000,COD,10
+TRX-1012,2025-11-11, Maya sari,jakarta,fashion,Kemeja Flanel,120000,2,20000,E-Wallet,4
+TRX-1013,2023-06-05,Agus Santoso,SBY,Otomotif,Helm Full Face,IDR_350k,1,0,Transfer Bank,4
+TRX-1014,10/10/2022,Putri Kusuma,Bandung,Peralatan Rumah,Sapu Lidi,15000,5,5000,COD,5
+TRX-1015,2024/08/17,Budi Santoso,Medan,Kesehatan,Vitamin C,Rp. 50000,-1,-,Kartu Kredit,
+TRX-1016,05-20-2021,Siti Lestari,Makasar,Elektronik,Laptop Gaming,15000000,1,500000,PayLater,4
+TRX-1017,2025-02-14,Anton Wijaya,JKT,Otomotif,Oli Motor,45000,tiga,0,eWallet,5
+TRX-1018,25/12/2024,Clara Sari,Yogyakarta,Kecantikan,Serum Wajah,125000,1,10000,Transfer Bank,5
+TRX-1019,2020-07-07,Rina Pratama,Semarang,Fashn,Celana Jeans,Rp.150000,2,null,COD,1
+TRX-1020,2020-07-07,Rina Pratama,Semarang,Fashion,Celana Jeans,150000,2,0,COD,1
