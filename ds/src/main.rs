@@ -271,6 +271,204 @@ fn deduplicate_transaction_ids(
     Ok((filtered, Some(dropped), dropped_count))
 }
 
+fn deduplicate_cross_id_transactions(
+    df: polars::prelude::DataFrame,
+) -> Result<(
+    polars::prelude::DataFrame,
+    Option<polars::prelude::DataFrame>,
+    usize,
+)> {
+    let id_col = find_col_by_keywords(&df, &["id_transaksi", "transaction_id", "trx"]);
+    let Some(id_name) = id_col else {
+        return Ok((df, None, 0));
+    };
+
+    let id_series = df.column(&id_name)?;
+    let col_names = df.get_column_names();
+    let signature_cols: Vec<String> = col_names
+        .iter()
+        .filter_map(|name| {
+            let low = name.to_ascii_lowercase();
+            if *name == id_name.as_str()
+                || low == "cleaned_at"
+                || low.starts_with("is_outlier_")
+                || low == "retention_count"
+                || low == "revenue_per_transaction"
+                || low == "qty_ekstrem"
+                || low == "rating_tidak_valid"
+                || low == "revenue_anomali"
+                || low == "duplikat_id_transaksi"
+                || low == "duplikat_id_berbeda"
+                || low == "tanggal_diluar_range"
+                || low == "perlu_review_manual"
+            {
+                None
+            } else {
+                Some((*name).to_string())
+            }
+        })
+        .collect();
+
+    let mut best_by_signature: HashMap<String, (usize, i64)> = HashMap::new();
+    let mut rows_by_signature: HashMap<String, Vec<(usize, String)>> = HashMap::new();
+
+    for i in 0..df.height() {
+        let id_val = id_series
+            .get(i)
+            .ok()
+            .filter(|v| !matches!(v, polars::prelude::AnyValue::Null))
+            .map(anyvalue_to_plain_string)
+            .map(|s| s.trim().to_string());
+
+        let Some(id) = id_val else {
+            continue;
+        };
+        if id.is_empty() {
+            continue;
+        }
+
+        let signature = signature_cols
+            .iter()
+            .map(|cn| {
+                let raw = df
+                    .column(cn)
+                    .ok()
+                    .and_then(|s| s.get(i).ok())
+                    .map(anyvalue_to_plain_string)
+                    .unwrap_or_default();
+                normalize_signature_piece(&raw)
+            })
+            .collect::<Vec<_>>()
+            .join("|");
+
+        let mut score: i64 = 0;
+        for col in &col_names {
+            if let Ok(series) = df.column(col) {
+                if let Ok(v) = series.get(i) {
+                    if !matches!(v, polars::prelude::AnyValue::Null) {
+                        let txt = anyvalue_to_plain_string(v);
+                        if !txt.trim().is_empty() && txt.trim() != "unknown" {
+                            score += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        rows_by_signature
+            .entry(signature.clone())
+            .or_default()
+            .push((i, id));
+        let entry = best_by_signature.entry(signature).or_insert((i, score));
+        if score > entry.1 {
+            *entry = (i, score);
+        }
+    }
+
+    let mut keep = vec![true; df.height()];
+    let mut dropped_count = 0_usize;
+
+    for (signature, rows) in &rows_by_signature {
+        let distinct_ids: HashSet<String> = rows.iter().map(|(_, id)| id.clone()).collect();
+        if distinct_ids.len() <= 1 {
+            continue;
+        }
+
+        if let Some((best_idx, _)) = best_by_signature.get(signature) {
+            for (idx, _) in rows {
+                if idx != best_idx {
+                    keep[*idx] = false;
+                    dropped_count += 1;
+                }
+            }
+        }
+    }
+
+    if dropped_count == 0 {
+        return Ok((df, None, 0));
+    }
+
+    let drop_vals: Vec<bool> = keep.iter().map(|v| !*v).collect();
+    let keep_mask = BooleanChunked::from_iter_values("keep_cross_id".into(), keep.iter().copied());
+    let drop_mask = BooleanChunked::from_iter_values("drop_cross_id".into(), drop_vals.into_iter());
+
+    let filtered = df.filter(&keep_mask)?;
+    let dropped = df.filter(&drop_mask)?;
+    Ok((filtered, Some(dropped), dropped_count))
+}
+
+fn merge_dropped_dataframes(
+    left: Option<polars::prelude::DataFrame>,
+    right: Option<polars::prelude::DataFrame>,
+) -> Result<Option<polars::prelude::DataFrame>> {
+    match (left, right) {
+        (None, None) => Ok(None),
+        (Some(df), None) | (None, Some(df)) => Ok(Some(df)),
+        (Some(mut a), Some(b)) => {
+            a.vstack_mut(&b)?;
+            Ok(Some(a))
+        }
+    }
+}
+
+fn refresh_post_dedup_flags(df: &mut polars::prelude::DataFrame) -> Result<()> {
+    let has_dup_id = df
+        .get_column_names()
+        .iter()
+        .any(|c| *c == "Duplikat_ID_Transaksi");
+    let has_dup_cross = df
+        .get_column_names()
+        .iter()
+        .any(|c| *c == "Duplikat_ID_Berbeda");
+
+    if has_dup_id {
+        df.with_column(polars::prelude::Series::new(
+            "Duplikat_ID_Transaksi".into(),
+            vec![Some(false); df.height()],
+        ))?;
+    }
+    if has_dup_cross {
+        df.with_column(polars::prelude::Series::new(
+            "Duplikat_ID_Berbeda".into(),
+            vec![Some(false); df.height()],
+        ))?;
+    }
+
+    let has_review = df
+        .get_column_names()
+        .iter()
+        .any(|c| *c == "Perlu_Review_Manual");
+    if has_review {
+        let risk: Vec<Option<bool>> = (0..df.height())
+            .map(|i| {
+                let mut bad = false;
+                for cn in [
+                    "Qty_Ekstrem",
+                    "Revenue_Anomali",
+                    "Duplikat_ID_Berbeda",
+                    "Harga_Satuan_Kosong_Awal",
+                ] {
+                    if let Ok(s) = df.column(cn) {
+                        if let Ok(v) = s.get(i) {
+                            if anyvalue_to_bool(v) {
+                                bad = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                Some(bad)
+            })
+            .collect();
+        df.with_column(polars::prelude::Series::new(
+            "Perlu_Review_Manual".into(),
+            risk,
+        ))?;
+    }
+
+    Ok(())
+}
+
 fn write_quarantine_csv(
     quarantine_df: &polars::prelude::DataFrame,
     source_csv_path: &Path,
@@ -1257,6 +1455,32 @@ fn anyvalue_to_plain_string(v: polars::prelude::AnyValue<'_>) -> String {
     }
 }
 
+fn normalize_signature_piece(raw: &str) -> String {
+    let trimmed = raw.trim().to_ascii_lowercase();
+    if trimmed.is_empty() {
+        return trimmed;
+    }
+
+    if let Ok(num) = trimmed.parse::<f64>() {
+        if num.is_finite() {
+            if (num.fract()).abs() < 1e-9 {
+                return format!("{:.0}", num);
+            }
+
+            let mut text = format!("{}", num);
+            while text.contains('.') && text.ends_with('0') {
+                text.pop();
+            }
+            if text.ends_with('.') {
+                text.pop();
+            }
+            return text;
+        }
+    }
+
+    trimmed
+}
+
 fn main() -> Result<()> {
     print_banner();
 
@@ -1308,22 +1532,40 @@ fn main() -> Result<()> {
             "{}",
             "── [2/4] PEMBERSIHAN ─────────────────────────".bold()
         );
-        let (clean_df, clean_report) = clean::run(raw_df.clone(), &audit_report)?;
-        let (dedup_df, dropped_dups_df, dropped_dups_count) = deduplicate_transaction_ids(clean_df)?;
-        if dropped_dups_count > 0 {
+        let (clean_df, mut clean_report) = clean::run(raw_df.clone(), &audit_report)?;
+        let (dedup_id_df, dropped_id_df, dropped_id_count) = deduplicate_transaction_ids(clean_df)?;
+        if dropped_id_count > 0 {
             println!(
                 "  {} Dedup    : {} baris duplikat ID dihapus (post-impute)",
                 "".yellow(),
-                dropped_dups_count
+                dropped_id_count
             );
         }
 
+        let (mut dedup_df, dropped_cross_df, dropped_cross_count) =
+            deduplicate_cross_id_transactions(dedup_id_df)?;
+        if dropped_cross_count > 0 {
+            println!(
+                "  {} Dedup    : {} baris duplikat lintas ID dihapus (exact match)",
+                "".yellow(),
+                dropped_cross_count
+            );
+        }
+
+        let dropped_dups_df = merge_dropped_dataframes(dropped_id_df, dropped_cross_df)?;
+        let dropped_dups_count = dropped_id_count + dropped_cross_count;
+
+        refresh_post_dedup_flags(&mut dedup_df)?;
+
         let analysis_df = dedup_df.clone();
-        let (final_df, quarantine_df) = if config.hard_reject {
+        let (mut final_df, quarantine_df) = if config.hard_reject {
             apply_hard_reject(dedup_df)?
         } else {
             (dedup_df, None)
         };
+
+        clean::add_retention_count(&mut final_df)?;
+        clean_report.new_columns.push("retention_count".to_string());
 
         let cleaned_csv_path = write_cleaned_csv(&final_df, csv_path.as_path(), output_dir)?;
         println!("  {} CSV Clean: {}", "".cyan(), cleaned_csv_path.display());

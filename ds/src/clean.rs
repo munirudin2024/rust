@@ -31,7 +31,7 @@ pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport
     let mut outliers_capped = Vec::new();
     let mut new_columns = Vec::new();
 
-    let pb = ProgressBar::new(6);
+    let pb = ProgressBar::new(7);
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
             .context("failed to set progress style")?,
@@ -39,6 +39,10 @@ pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport
 
     pb.set_message("Normalisasi angka/tanggal/teks");
     cleaned_df = normalize_special_fields(cleaned_df)?;
+    pb.inc(1);
+
+    pb.set_message("Preprocessing: buang harga kosong + qty outlier");
+    cleaned_df = drop_ds_unsafe_rows(cleaned_df)?;
     pb.inc(1);
 
     pb.set_message("Isi nilai yang hilang");
@@ -80,6 +84,11 @@ fn fill_missing_values(
     nulls_filled: &mut Vec<(String, usize)>,
 ) -> Result<DataFrame> {
     for col_name in &audit.numeric_cols {
+        let lower_name = col_name.to_ascii_lowercase();
+        if lower_name.contains("harga") || lower_name.contains("price") {
+            continue;
+        }
+
         if let Some(profile) = audit.profiles.iter().find(|p| p.name == *col_name) {
             let null_count = profile.null_count;
             if null_count > 0 {
@@ -263,6 +272,46 @@ fn normalize_special_fields(mut df: DataFrame) -> Result<DataFrame> {
     Ok(df)
 }
 
+fn drop_ds_unsafe_rows(df: DataFrame) -> Result<DataFrame> {
+    let row_count = df.height();
+    if row_count == 0 {
+        return Ok(df);
+    }
+
+    let price_col = find_col_by_keywords(&df, &["harga", "price"]);
+    let qty_col = find_col_by_keywords(&df, &["jumlah", "qty", "quantity"]);
+
+    if price_col.is_none() && qty_col.is_none() {
+        return Ok(df);
+    }
+
+    let price_series = price_col.as_ref().and_then(|c| df.column(c).ok());
+    let qty_series = qty_col.as_ref().and_then(|c| df.column(c).ok());
+
+    let keep: Vec<bool> = (0..row_count)
+        .map(|i| {
+            let price_missing = price_series
+                .as_ref()
+                .and_then(|s| s.get(i).ok())
+                .and_then(parse_any_to_f64)
+                .is_none();
+
+            let qty_outlier = qty_series
+                .as_ref()
+                .and_then(|s| s.get(i).ok())
+                .and_then(parse_any_to_f64)
+                .map(|q| q > 100.0)
+                .unwrap_or(false);
+
+            !price_missing && !qty_outlier
+        })
+        .collect();
+
+    let keep_mask = BooleanChunked::from_iter_values("keep_ds_safe".into(), keep.into_iter());
+    let filtered = df.filter(&keep_mask)?;
+    Ok(filtered)
+}
+
 fn parse_any_to_f64(v: AnyValue<'_>) -> Option<f64> {
     match v {
         AnyValue::Null => None,
@@ -295,6 +344,9 @@ fn parse_mixed_number(raw: &str) -> Option<f64> {
     cleaned = cleaned.replace("idr", "");
     cleaned = cleaned.replace("rp", "");
     cleaned = cleaned.replace(' ', "");
+    cleaned = cleaned
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '.' && c != ',')
+        .to_string();
 
     let mut sign = 1.0;
     if cleaned.starts_with('-') {
@@ -317,8 +369,25 @@ fn parse_mixed_number(raw: &str) -> Option<f64> {
 
     let has_dot = cleaned.contains('.');
     let has_comma = cleaned.contains(',');
+    let has_exp = cleaned.contains('e') || cleaned.contains('E');
     let normalized = if has_dot && has_comma {
         cleaned.replace('.', "").replace(',', ".")
+    } else if has_exp {
+        cleaned
+    } else if has_dot {
+        let dot_count = cleaned.matches('.').count();
+        if dot_count > 1 {
+            cleaned.replace('.', "")
+        } else if dot_count == 1 {
+            let parts: Vec<&str> = cleaned.split('.').collect();
+            if parts.len() == 2 && parts[1].len() == 3 {
+                cleaned.replace('.', "")
+            } else {
+                cleaned
+            }
+        } else {
+            cleaned
+        }
     } else if has_comma {
         cleaned.replace(',', ".")
     } else {
@@ -409,12 +478,19 @@ fn handle_outliers(
     outliers_capped: &mut Vec<(String, usize)>,
     new_columns: &mut Vec<String>,
 ) -> Result<DataFrame> {
+    let row_count = df.height();
+
     for col_name in &audit.numeric_cols {
         let profile_opt = audit.profiles.iter().find(|p| p.name == *col_name);
         if let Some(profile) = profile_opt {
             let lb = profile.lower_bound;
             let ub = profile.upper_bound;
             let out_cnt = profile.outlier_count.unwrap_or(0);
+            let lower_name = col_name.to_ascii_lowercase();
+            let is_rating_col = lower_name.contains("penilaian")
+                || lower_name.contains("rating")
+                || lower_name.contains("bintang")
+                || lower_name.contains("star");
 
             if let (Some(lower), Some(upper)) = (lb, ub) {
                 let flag_name = format!("is_outlier_{}", col_name);
@@ -422,29 +498,35 @@ fn handle_outliers(
                 let s = df.column(col_name)?.cast(&DataType::Float64)?;
                 let ca = s.f64()?;
 
-                let capped_vals: Vec<Option<f64>> = ca
-                    .into_iter()
-                    .map(|v| match v {
-                        Some(x) if x < lower => Some(lower),
-                        Some(x) if x > upper => Some(upper),
-                        Some(x) => Some(x),
-                        None => None,
-                    })
-                    .collect();
-
-                let flag_vals: Vec<Option<bool>> = ca
-                    .into_iter()
-                    .map(|v| v.map(|x| x < lower || x > upper))
-                    .collect();
+                let (capped_vals, flag_vals): (Vec<Option<f64>>, Vec<Option<bool>>) = if is_rating_col {
+                    (
+                        ca.into_iter().map(|v| v.map(|x| x)).collect(),
+                        vec![Some(false); row_count],
+                    )
+                } else {
+                    (
+                        ca.into_iter()
+                            .map(|v| match v {
+                                Some(x) if x < lower => Some(lower),
+                                Some(x) if x > upper => Some(upper),
+                                Some(x) => Some(x),
+                                None => None,
+                            })
+                            .collect(),
+                        ca.into_iter().map(|v| v.map(|x| x < lower || x > upper)).collect(),
+                    )
+                };
 
                 let capped = Series::new(col_name.as_str().into(), capped_vals);
                 let flag = Series::new(flag_name.as_str().into(), flag_vals);
 
                 df.with_column(capped)?;
                 df.with_column(flag)?;
-                new_columns.push(flag_name);
+                if !is_rating_col {
+                    new_columns.push(flag_name);
+                }
 
-                if out_cnt > 0 {
+                if out_cnt > 0 && !is_rating_col {
                     outliers_capped.push((col_name.clone(), out_cnt));
                 }
             }
@@ -581,7 +663,6 @@ fn feature_engineering(
     new_columns: &mut Vec<String>,
 ) -> Result<DataFrame> {
     add_revenue_per_transaction(&mut df, new_columns)?;
-    add_retention_count(&mut df, new_columns)?;
 
     if audit.numeric_cols.len() >= 2 {
         let col1 = &audit.numeric_cols[0];
@@ -687,8 +768,8 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
 
         for i in 0..row_count {
             let q_raw = qs.get(i).ok().and_then(parse_any_to_f64).map(|v| v.round() as i64);
-            let q_capped = q_raw.map(|q| if q > 100 { 100 } else { q });
-            let is_extreme = q_raw.map(|q| q > 100).unwrap_or(false);
+            let needs_extreme_fix = q_raw.map(|q| q > 100).unwrap_or(false);
+            let q_capped = q_raw.map(|q| if q > 100 { 10 } else { q });
 
             let base_status = existing_status
                 .as_ref()
@@ -697,13 +778,13 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
                 .unwrap_or_else(|| "NORMAL".to_string());
 
             let status = match q_capped {
-                Some(_) if is_extreme => "ANOMALI_QTY_EKSTREM".to_string(),
+                Some(_) if needs_extreme_fix => "KOREKSI_QTY_EKSTREM".to_string(),
                 Some(_) => base_status,
                 None => "KOREKSI MANUAL".to_string(),
             };
 
             qty_vals.push(q_capped);
-            qty_ekstrem.push(Some(is_extreme));
+            qty_ekstrem.push(Some(false));
             status_vals.push(Some(status));
         }
 
@@ -829,7 +910,34 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
     if let Some(id_name) = &id_col {
         let id_series = df.column(id_name)?;
         let mut id_count: HashMap<String, usize> = HashMap::new();
-        let mut signature_map: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut signature_ids: HashMap<String, HashSet<String>> = HashMap::new();
+
+        let signature_cols: Vec<String> = df
+            .get_column_names()
+            .iter()
+            .filter_map(|name| {
+                let low = name.to_ascii_lowercase();
+                if *name == id_name.as_str()
+                    || low == "cleaned_at"
+                    || low.starts_with("is_outlier_")
+                    || low == "retention_count"
+                    || low == "revenue_per_transaction"
+                    || low == "qty_ekstrem"
+                    || low == "rating_tidak_valid"
+                    || low == "revenue_anomali"
+                    || low == "duplikat_id_transaksi"
+                    || low == "duplikat_id_berbeda"
+                    || low == "tanggal_diluar_range"
+                    || low == "perlu_review_manual"
+                {
+                    None
+                } else {
+                    Some((*name).to_string())
+                }
+            })
+            .collect();
+
+        let mut row_signatures: Vec<String> = Vec::with_capacity(row_count);
 
         for i in 0..row_count {
             let id_val = id_series
@@ -839,40 +947,32 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
                 .map(anyvalue_to_plain_string)
                 .map(|s| s.trim().to_string());
 
-            if let Some(id) = id_val {
-                if id.is_empty() {
-                    continue;
-                }
+            let Some(id) = id_val else {
+                row_signatures.push(String::new());
+                continue;
+            };
+            if id.is_empty() {
+                row_signatures.push(String::new());
+                continue;
+            }
 
-                *id_count.entry(id.clone()).or_insert(0) += 1;
+            *id_count.entry(id.clone()).or_insert(0) += 1;
 
-                let mut parts = Vec::with_capacity(6);
-                for cn in [
-                    price_col.as_deref().unwrap_or(""),
-                    qty_col.as_deref().unwrap_or(""),
-                    discount_col.as_deref().unwrap_or(""),
-                    rating_col.as_deref().unwrap_or(""),
-                    date_col.as_deref().unwrap_or(""),
-                    status_col_name,
-                ] {
-                    if cn.is_empty() {
-                        continue;
-                    }
-                    let piece = df
-                        .column(cn)
+            let signature = signature_cols
+                .iter()
+                .map(|cn| {
+                    let raw = df.column(cn)
                         .ok()
                         .and_then(|s| s.get(i).ok())
                         .map(anyvalue_to_plain_string)
                         .unwrap_or_default();
-                    parts.push(piece);
-                }
+                    normalize_signature_piece(&raw)
+                })
+                .collect::<Vec<_>>()
+                .join("|");
 
-                let signature = parts.join("|");
-                signature_map
-                    .entry(id)
-                    .or_default()
-                    .insert(signature);
-            }
+            signature_ids.entry(signature.clone()).or_default().insert(id);
+            row_signatures.push(signature);
         }
 
         let mut dup_flags: Vec<Option<bool>> = Vec::with_capacity(row_count);
@@ -888,7 +988,10 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
 
             if let Some(id) = id_val {
                 let dup = id_count.get(&id).copied().unwrap_or(0) > 1;
-                let conflict = signature_map.get(&id).map(|set| set.len()).unwrap_or(0) > 1;
+                let conflict = signature_ids
+                    .get(&row_signatures[i])
+                    .map(|set| set.len() > 1)
+                    .unwrap_or(false);
                 dup_flags.push(Some(dup));
                 conflict_flags.push(Some(conflict));
             } else {
@@ -928,7 +1031,6 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
             let mut risk = false;
             for cn in [
                 "Qty_Ekstrem",
-                "Rating_Tidak_Valid",
                 "Revenue_Anomali",
                 "Duplikat_ID_Berbeda",
                 "Harga_Satuan_Kosong_Awal",
@@ -994,7 +1096,7 @@ fn add_revenue_per_transaction(df: &mut DataFrame, new_columns: &mut Vec<String>
     Ok(())
 }
 
-fn add_retention_count(df: &mut DataFrame, new_columns: &mut Vec<String>) -> Result<()> {
+pub fn add_retention_count(df: &mut DataFrame) -> Result<()> {
     let user_col = find_col_by_keywords(df, &["konsumen", "customer", "user", "nama"]);
     let Some(user_col_name) = user_col else {
         return Ok(());
@@ -1027,7 +1129,6 @@ fn add_retention_count(df: &mut DataFrame, new_columns: &mut Vec<String>) -> Res
         .collect();
 
     df.with_column(Series::new("retention_count".into(), retention))?;
-    new_columns.push("retention_count".to_string());
     Ok(())
 }
 
@@ -1144,4 +1245,30 @@ fn anyvalue_to_plain_string(v: AnyValue<'_>) -> String {
         AnyValue::String(s) => s.to_string(),
         _ => v.to_string().trim_matches('"').to_string(),
     }
+}
+
+fn normalize_signature_piece(raw: &str) -> String {
+    let trimmed = raw.trim().to_ascii_lowercase();
+    if trimmed.is_empty() {
+        return trimmed;
+    }
+
+    if let Ok(num) = trimmed.parse::<f64>() {
+        if num.is_finite() {
+            if (num.fract()).abs() < 1e-9 {
+                return format!("{:.0}", num);
+            }
+
+            let mut text = format!("{}", num);
+            while text.contains('.') && text.ends_with('0') {
+                text.pop();
+            }
+            if text.ends_with('.') {
+                text.pop();
+            }
+            return text;
+        }
+    }
+
+    trimmed
 }
