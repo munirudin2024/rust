@@ -3,12 +3,13 @@
 //! Adaptive and fully dynamic cleansing for arbitrary CSV schema.
 
 use anyhow::{Context, Result};
+use chrono::Datelike;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use polars::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::audit::AuditReport;
 
@@ -30,7 +31,7 @@ pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport
     let mut outliers_capped = Vec::new();
     let mut new_columns = Vec::new();
 
-    let pb = ProgressBar::new(5);
+    let pb = ProgressBar::new(6);
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
             .context("failed to set progress style")?,
@@ -54,6 +55,10 @@ pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport
 
     pb.set_message("Rekayasa fitur");
     cleaned_df = feature_engineering(cleaned_df, audit, &mut new_columns)?;
+    pb.inc(1);
+
+    pb.set_message("Validasi aturan bisnis");
+    cleaned_df = apply_business_rules(cleaned_df, &mut new_columns)?;
     pb.inc(1);
     pb.finish_with_message("Pembersihan selesai");
 
@@ -151,7 +156,7 @@ fn normalize_special_fields(mut df: DataFrame) -> Result<DataFrame> {
         let lower = col_name.to_ascii_lowercase();
 
         if lower.contains("jumlah") || lower.contains("qty") || lower.contains("quantity") {
-            let vals: Vec<Option<i64>> = (0..s.len())
+            let raw_vals: Vec<Option<i64>> = (0..s.len())
                 .map(|i| {
                     s.get(i)
                         .ok()
@@ -160,19 +165,36 @@ fn normalize_special_fields(mut df: DataFrame) -> Result<DataFrame> {
                 })
                 .collect();
 
-            // Keep negative quantity as-is and classify transaction type.
-            let status_vals: Vec<Option<String>> = vals
+            // Business rule for this table: negative qty is typo, zero qty is corrected to 1.
+            let vals: Vec<Option<i64>> = raw_vals
                 .iter()
                 .map(|v| match v {
-                    Some(x) if *x < 0 => Some("RETUR/REFUND".to_string()),
+                    Some(x) if *x < 0 => Some(x.abs()),
+                    Some(0) => Some(1),
+                    Some(x) => Some(*x),
+                    None => None,
+                })
+                .collect();
+
+            let status_vals: Vec<Option<String>> = raw_vals
+                .iter()
+                .map(|v| match v {
+                    Some(x) if *x < 0 => Some("KOREKSI_QTY_NEGATIF".to_string()),
+                    Some(0) => Some("KOREKSI_QTY_NOL_KE_1".to_string()),
                     Some(_) => Some("NORMAL".to_string()),
                     None => Some("KOREKSI MANUAL".to_string()),
                 })
                 .collect();
+
+            let qty_zero_flag: Vec<Option<bool>> = raw_vals.iter().map(|v| v.map(|x| x == 0)).collect();
+            let qty_negative_flag: Vec<Option<bool>> = raw_vals.iter().map(|v| v.map(|x| x < 0)).collect();
             df.with_column(Series::new(col_name.as_str().into(), vals))?;
             df.with_column(Series::new("Status_Transaksi".into(), status_vals))?;
+            df.with_column(Series::new("Qty_Nol".into(), qty_zero_flag))?;
+            df.with_column(Series::new("Qty_Negatif_Awal".into(), qty_negative_flag))?;
         } else {
-            let vals: Vec<Option<f64>> = (0..s.len())
+            let is_price_col = lower.contains("harga") || lower.contains("price");
+            let mut vals: Vec<Option<f64>> = (0..s.len())
                 .map(|i| {
                     s.get(i)
                         .ok()
@@ -180,6 +202,30 @@ fn normalize_special_fields(mut df: DataFrame) -> Result<DataFrame> {
                         .map(|v| v.abs())
                 })
                 .collect();
+
+            let missing_initial: Vec<Option<bool>> = (0..s.len())
+                .map(|i| {
+                    s.get(i)
+                        .ok()
+                        .map(|v| matches!(v, AnyValue::Null) || parse_any_to_f64(v).is_none())
+                })
+                .collect();
+
+            // If unit prices are mixed scale (e.g. 65000 and 0.2), lift small decimals
+            // to million-based nominal so downstream revenue is not distorted.
+            if is_price_col {
+                for v in &mut vals {
+                    if let Some(x) = v {
+                        if *x > 0.0 && *x < 1.0 {
+                            *x *= 1_000_000.0;
+                        }
+                    }
+                }
+
+                let miss_col_name = format!("{}_Kosong_Awal", col_name);
+                df.with_column(Series::new(miss_col_name.as_str().into(), missing_initial))?;
+            }
+
             df.with_column(Series::new(col_name.as_str().into(), vals))?;
         }
 
@@ -279,9 +325,13 @@ fn parse_mixed_number(raw: &str) -> Option<f64> {
         cleaned
     };
 
+    if let Ok(v) = normalized.parse::<f64>() {
+        return Some(sign * v * multiplier);
+    }
+
     let filtered: String = normalized
         .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+')
         .collect();
 
     if filtered.is_empty() {
@@ -434,6 +484,24 @@ fn standardize_strings(mut df: DataFrame, audit: &AuditReport) -> Result<DataFra
         ("CREDITCARD", "KARTU KREDIT"),
         ("PAYLATER", "PAYLATER"),
     ]);
+    let category_map = HashMap::from([
+        ("FASHION", "FASHION"),
+        ("FASHN", "FASHION"),
+        ("FASION", "FASHION"),
+        ("ELEKTRONIK", "ELEKTRONIK"),
+        ("ELEKTRNIK", "ELEKTRONIK"),
+        ("ELEKTRONICS", "ELEKTRONIK"),
+        ("ELECTRONIC", "ELEKTRONIK"),
+        ("ELECTRONICS", "ELEKTRONIK"),
+        ("KESEHATAN", "KESEHATAN"),
+        ("HEALTH", "KESEHATAN"),
+        ("RUMAH TANGGA", "RUMAH TANGGA"),
+        ("HOME", "RUMAH TANGGA"),
+        ("KOSMETIK", "KOSMETIK"),
+        ("BEAUTY", "KOSMETIK"),
+        ("OTOMOTIF", "OTOMOTIF"),
+        ("AUTOMOTIVE", "OTOMOTIF"),
+    ]);
 
     for col_name in &audit.string_cols {
         let s = df.column(col_name)?;
@@ -445,6 +513,10 @@ fn standardize_strings(mut df: DataFrame, audit: &AuditReport) -> Result<DataFra
         let is_payment_col = {
             let n = col_name.to_ascii_lowercase();
             n.contains("pembayaran") || n.contains("payment") || n.contains("metode")
+        };
+        let is_category_col = {
+            let n = col_name.to_ascii_lowercase();
+            n.contains("kategori") || n.contains("category") || n.contains("produk")
         };
 
         let mut cleaned: Vec<Option<String>> = Vec::with_capacity(s.len());
@@ -475,6 +547,17 @@ fn standardize_strings(mut df: DataFrame, audit: &AuditReport) -> Result<DataFra
                         .filter(|c| c.is_ascii_alphanumeric())
                         .collect::<String>();
                     let mapped = payment_map
+                        .get(key.as_str())
+                        .map(|x| (*x).to_string())
+                        .unwrap_or(upper);
+                    cleaned.push(Some(mapped));
+                } else if is_category_col {
+                    let upper = normalized.to_ascii_uppercase();
+                    let key = upper
+                        .chars()
+                        .filter(|c| c.is_ascii_alphanumeric())
+                        .collect::<String>();
+                    let mapped = category_map
                         .get(key.as_str())
                         .map(|x| (*x).to_string())
                         .unwrap_or(upper);
@@ -571,6 +654,300 @@ fn feature_engineering(
     let cleaned_vec = vec![cleaned_at; df.height()];
     df.with_column(Series::new("cleaned_at".into(), cleaned_vec))?;
     new_columns.push("cleaned_at".to_string());
+
+    Ok(df)
+}
+
+fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Result<DataFrame> {
+    let row_count = df.height();
+
+    let qty_col = find_col_by_keywords(&df, &["jumlah", "qty", "quantity"]);
+    let rating_col = find_col_by_keywords(&df, &["penilaian", "rating", "bintang", "star"]);
+    let price_col = find_col_by_keywords(&df, &["harga", "price"]);
+    let discount_col = find_col_by_keywords(&df, &["diskon", "discount"]);
+    let date_col = find_col_by_keywords(&df, &["tanggal", "date", "tgl"]);
+    let id_col = find_col_by_keywords(&df, &["id_transaksi", "transaction_id", "trx", "id"]);
+
+    let status_col_name = "Status_Transaksi";
+    let has_status_col = df
+        .get_column_names()
+        .iter()
+        .any(|c| *c == status_col_name);
+
+    if let Some(qty_name) = &qty_col {
+        let qs = df.column(qty_name)?;
+        let existing_status = if has_status_col {
+            Some(df.column(status_col_name)?)
+        } else {
+            None
+        };
+        let mut qty_vals: Vec<Option<i64>> = Vec::with_capacity(row_count);
+        let mut qty_ekstrem: Vec<Option<bool>> = Vec::with_capacity(row_count);
+        let mut status_vals: Vec<Option<String>> = Vec::with_capacity(row_count);
+
+        for i in 0..row_count {
+            let q_raw = qs.get(i).ok().and_then(parse_any_to_f64).map(|v| v.round() as i64);
+            let q_capped = q_raw.map(|q| if q > 100 { 100 } else { q });
+            let is_extreme = q_raw.map(|q| q > 100).unwrap_or(false);
+
+            let base_status = existing_status
+                .as_ref()
+                .and_then(|s| s.get(i).ok())
+                .map(anyvalue_to_plain_string)
+                .unwrap_or_else(|| "NORMAL".to_string());
+
+            let status = match q_capped {
+                Some(_) if is_extreme => "ANOMALI_QTY_EKSTREM".to_string(),
+                Some(_) => base_status,
+                None => "KOREKSI MANUAL".to_string(),
+            };
+
+            qty_vals.push(q_capped);
+            qty_ekstrem.push(Some(is_extreme));
+            status_vals.push(Some(status));
+        }
+
+        df.with_column(Series::new(qty_name.as_str().into(), qty_vals))?;
+        df.with_column(Series::new("Qty_Ekstrem".into(), qty_ekstrem))?;
+        new_columns.push("Qty_Ekstrem".to_string());
+
+        if has_status_col {
+            df.with_column(Series::new(status_col_name.into(), status_vals))?;
+        } else {
+            df.with_column(Series::new(status_col_name.into(), status_vals))?;
+            new_columns.push(status_col_name.to_string());
+        }
+    }
+
+    if let Some(rating_name) = &rating_col {
+        let rs = df.column(rating_name)?;
+        let mut fixed_rating: Vec<Option<f64>> = Vec::with_capacity(row_count);
+        let mut rating_invalid: Vec<Option<bool>> = Vec::with_capacity(row_count);
+
+        for i in 0..row_count {
+            let r = rs.get(i).ok().and_then(parse_any_to_f64);
+            match r {
+                Some(x) if x < 1.0 => {
+                    fixed_rating.push(Some(1.0));
+                    rating_invalid.push(Some(true));
+                }
+                Some(x) if x > 5.0 => {
+                    fixed_rating.push(Some(5.0));
+                    rating_invalid.push(Some(true));
+                }
+                Some(x) => {
+                    fixed_rating.push(Some(x));
+                    rating_invalid.push(Some(false));
+                }
+                None => {
+                    fixed_rating.push(None);
+                    rating_invalid.push(Some(false));
+                }
+            }
+        }
+
+        df.with_column(Series::new(rating_name.as_str().into(), fixed_rating))?;
+        df.with_column(Series::new("Rating_Tidak_Valid".into(), rating_invalid))?;
+        new_columns.push("Rating_Tidak_Valid".to_string());
+    }
+
+    if let (Some(harga), Some(jumlah)) = (&price_col, &qty_col) {
+        let hs = df.column(harga)?;
+        let qs = df.column(jumlah)?;
+        let ds = discount_col.as_ref().and_then(|c| df.column(c).ok());
+        let status_series = if has_status_col {
+            Some(df.column(status_col_name)?)
+        } else {
+            None
+        };
+
+        let mut revenue_vals: Vec<Option<f64>> = Vec::with_capacity(row_count);
+        let mut revenue_anom: Vec<Option<bool>> = Vec::with_capacity(row_count);
+
+        for i in 0..row_count {
+            let h = hs.get(i).ok().and_then(parse_any_to_f64);
+            let q = qs.get(i).ok().and_then(parse_any_to_f64);
+            let d = ds
+                .as_ref()
+                .and_then(|s| s.get(i).ok())
+                .and_then(parse_any_to_f64)
+                .unwrap_or(0.0);
+
+            let status = status_series
+                .as_ref()
+                .and_then(|s| s.get(i).ok())
+                .map(anyvalue_to_plain_string)
+                .unwrap_or_else(|| "NORMAL".to_string());
+
+            match (h, q) {
+                (Some(hv), Some(qv)) => {
+                    let subtotal = hv * qv;
+                    let mut rev = subtotal - d;
+                    let mut flagged = false;
+
+                    if status == "NORMAL" && rev < 0.0 {
+                        rev = 0.0;
+                        flagged = true;
+                    }
+
+                    if status == "NORMAL" && hv > 0.0 && qv > 0.0 {
+                        let hard_max = subtotal * 1.05;
+                        if rev > hard_max {
+                            rev = hard_max;
+                            flagged = true;
+                        }
+                    }
+
+                    if !rev.is_finite() {
+                        revenue_vals.push(None);
+                        revenue_anom.push(Some(true));
+                    } else {
+                        revenue_vals.push(Some(rev));
+                        revenue_anom.push(Some(flagged));
+                    }
+                }
+                _ => {
+                    revenue_vals.push(None);
+                    revenue_anom.push(Some(false));
+                }
+            }
+        }
+
+        df.with_column(Series::new("revenue_per_transaction".into(), revenue_vals))?;
+        if df
+            .get_column_names()
+            .iter()
+            .any(|c| *c == "Revenue_Anomali")
+        {
+            df.with_column(Series::new("Revenue_Anomali".into(), revenue_anom))?;
+        } else {
+            df.with_column(Series::new("Revenue_Anomali".into(), revenue_anom))?;
+            new_columns.push("Revenue_Anomali".to_string());
+        }
+    }
+
+    if let Some(id_name) = &id_col {
+        let id_series = df.column(id_name)?;
+        let mut id_count: HashMap<String, usize> = HashMap::new();
+        let mut signature_map: HashMap<String, HashSet<String>> = HashMap::new();
+
+        for i in 0..row_count {
+            let id_val = id_series
+                .get(i)
+                .ok()
+                .filter(|v| !matches!(v, AnyValue::Null))
+                .map(anyvalue_to_plain_string)
+                .map(|s| s.trim().to_string());
+
+            if let Some(id) = id_val {
+                if id.is_empty() {
+                    continue;
+                }
+
+                *id_count.entry(id.clone()).or_insert(0) += 1;
+
+                let mut parts = Vec::with_capacity(6);
+                for cn in [
+                    price_col.as_deref().unwrap_or(""),
+                    qty_col.as_deref().unwrap_or(""),
+                    discount_col.as_deref().unwrap_or(""),
+                    rating_col.as_deref().unwrap_or(""),
+                    date_col.as_deref().unwrap_or(""),
+                    status_col_name,
+                ] {
+                    if cn.is_empty() {
+                        continue;
+                    }
+                    let piece = df
+                        .column(cn)
+                        .ok()
+                        .and_then(|s| s.get(i).ok())
+                        .map(anyvalue_to_plain_string)
+                        .unwrap_or_default();
+                    parts.push(piece);
+                }
+
+                let signature = parts.join("|");
+                signature_map
+                    .entry(id)
+                    .or_default()
+                    .insert(signature);
+            }
+        }
+
+        let mut dup_flags: Vec<Option<bool>> = Vec::with_capacity(row_count);
+        let mut conflict_flags: Vec<Option<bool>> = Vec::with_capacity(row_count);
+
+        for i in 0..row_count {
+            let id_val = id_series
+                .get(i)
+                .ok()
+                .filter(|v| !matches!(v, AnyValue::Null))
+                .map(anyvalue_to_plain_string)
+                .map(|s| s.trim().to_string());
+
+            if let Some(id) = id_val {
+                let dup = id_count.get(&id).copied().unwrap_or(0) > 1;
+                let conflict = signature_map.get(&id).map(|set| set.len()).unwrap_or(0) > 1;
+                dup_flags.push(Some(dup));
+                conflict_flags.push(Some(conflict));
+            } else {
+                dup_flags.push(Some(false));
+                conflict_flags.push(Some(false));
+            }
+        }
+
+        df.with_column(Series::new("Duplikat_ID_Transaksi".into(), dup_flags))?;
+        df.with_column(Series::new("Duplikat_ID_Berbeda".into(), conflict_flags))?;
+        new_columns.push("Duplikat_ID_Transaksi".to_string());
+        new_columns.push("Duplikat_ID_Berbeda".to_string());
+    }
+
+    if let Some(date_name) = &date_col {
+        let ds = df.column(date_name)?;
+        let current_year = chrono::Utc::now().year();
+
+        let year_out_of_range: Vec<Option<bool>> = (0..row_count)
+            .map(|i| {
+                ds.get(i)
+                    .ok()
+                    .filter(|v| !matches!(v, AnyValue::Null))
+                    .map(anyvalue_to_plain_string)
+                    .and_then(|s| s.get(0..4).map(|y| y.to_string()))
+                    .and_then(|y| y.parse::<i32>().ok())
+                    .map(|y| y < 2020 || y > current_year)
+            })
+            .collect();
+
+        df.with_column(Series::new("Tanggal_DiLuar_Range".into(), year_out_of_range))?;
+        new_columns.push("Tanggal_DiLuar_Range".to_string());
+    }
+
+    let high_risk: Vec<Option<bool>> = (0..row_count)
+        .map(|i| {
+            let mut risk = false;
+            for cn in [
+                "Qty_Ekstrem",
+                "Rating_Tidak_Valid",
+                "Revenue_Anomali",
+                "Duplikat_ID_Berbeda",
+                "Harga_Satuan_Kosong_Awal",
+            ] {
+                if let Ok(s) = df.column(cn) {
+                    if let Ok(v) = s.get(i) {
+                        if anyvalue_to_bool(v) {
+                            risk = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            Some(risk)
+        })
+        .collect();
+
+    df.with_column(Series::new("Perlu_Review_Manual".into(), high_risk))?;
+    new_columns.push("Perlu_Review_Manual".to_string());
 
     Ok(df)
 }
@@ -744,6 +1121,22 @@ fn title_case(value: &str) -> String {
         .filter(|word| !word.is_empty())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn anyvalue_to_bool(v: AnyValue<'_>) -> bool {
+    match v {
+        AnyValue::Boolean(b) => b,
+        AnyValue::String(s) => s.eq_ignore_ascii_case("true") || s == "1",
+        AnyValue::UInt8(x) => x > 0,
+        AnyValue::UInt16(x) => x > 0,
+        AnyValue::UInt32(x) => x > 0,
+        AnyValue::UInt64(x) => x > 0,
+        AnyValue::Int8(x) => x > 0,
+        AnyValue::Int16(x) => x > 0,
+        AnyValue::Int32(x) => x > 0,
+        AnyValue::Int64(x) => x > 0,
+        _ => false,
+    }
 }
 
 fn anyvalue_to_plain_string(v: AnyValue<'_>) -> String {
