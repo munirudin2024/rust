@@ -95,6 +95,10 @@ pub fn write_dataset_outputs(
         hard_reject,
     )?;
 
+    if let Err(err) = crate::output::looker::write_looker_helper_files(output_root) {
+        eprintln!("PERINGATAN: gagal menulis helper Looker Studio: {err:#}");
+    }
+
     let quarantine_rows = quarantine_df.map(|q| q.height()).unwrap_or(0);
 
     Ok(DatasetReportArtifacts {
