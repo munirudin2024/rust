@@ -17,6 +17,7 @@ rayon      = "1.8"
 indicatif  = "0.18"
 colored    = "3.0"
 regex      = "1.10"
+sha2       = "0.10"
 reqwest    = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
 tokio      = { version = "1", features = ["full", "rt-multi-thread"] }

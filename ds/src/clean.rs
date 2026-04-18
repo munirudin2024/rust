@@ -3,12 +3,13 @@
 //! Adaptive and fully dynamic cleansing for arbitrary CSV schema.
 
 use anyhow::{Context, Result};
-use chrono::Datelike;
+use chrono::NaiveDate;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use polars::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 
 use crate::audit::AuditReport;
@@ -24,7 +25,11 @@ pub struct CleanReport {
 }
 
 /// Run full cleansing pipeline.
-pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport)> {
+pub fn run(
+    df: DataFrame,
+    audit: &AuditReport,
+    max_business_date: NaiveDate,
+) -> Result<(DataFrame, CleanReport)> {
     let rows_before = df.height();
     let mut cleaned_df = df;
     let mut nulls_filled = Vec::new();
@@ -62,7 +67,7 @@ pub fn run(df: DataFrame, audit: &AuditReport) -> Result<(DataFrame, CleanReport
     pb.inc(1);
 
     pb.set_message("Validasi aturan bisnis");
-    cleaned_df = apply_business_rules(cleaned_df, &mut new_columns)?;
+    cleaned_df = apply_business_rules(cleaned_df, &mut new_columns, max_business_date)?;
     pb.inc(1);
     pb.finish_with_message("Pembersihan selesai");
 
@@ -600,6 +605,10 @@ fn standardize_strings(mut df: DataFrame, audit: &AuditReport) -> Result<DataFra
             let n = col_name.to_ascii_lowercase();
             n.contains("kategori") || n.contains("category") || n.contains("produk")
         };
+        let is_customer_col = {
+            let n = col_name.to_ascii_lowercase();
+            n.contains("konsumen") || n.contains("customer") || n.contains("pelanggan")
+        };
 
         let mut cleaned: Vec<Option<String>> = Vec::with_capacity(s.len());
         for idx in 0..s.len() {
@@ -644,6 +653,8 @@ fn standardize_strings(mut df: DataFrame, audit: &AuditReport) -> Result<DataFra
                         .map(|x| (*x).to_string())
                         .unwrap_or(upper);
                     cleaned.push(Some(mapped));
+                } else if is_customer_col {
+                    cleaned.push(Some(normalize_customer_name(&normalized)));
                 } else {
                     cleaned.push(Some(normalized.to_ascii_lowercase()));
                 }
@@ -739,7 +750,11 @@ fn feature_engineering(
     Ok(df)
 }
 
-fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Result<DataFrame> {
+fn apply_business_rules(
+    mut df: DataFrame,
+    new_columns: &mut Vec<String>,
+    max_business_date: NaiveDate,
+) -> Result<DataFrame> {
     let row_count = df.height();
 
     let qty_col = find_col_by_keywords(&df, &["jumlah", "qty", "quantity"]);
@@ -784,7 +799,7 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
             };
 
             qty_vals.push(q_capped);
-            qty_ekstrem.push(Some(false));
+            qty_ekstrem.push(Some(needs_extreme_fix));
             status_vals.push(Some(status));
         }
 
@@ -841,6 +856,21 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
         } else {
             None
         };
+
+        let harga_per_row: Vec<Option<f64>> = (0..row_count)
+            .map(|i| hs.get(i).ok().and_then(parse_any_to_f64))
+            .collect();
+        let price_values: Vec<f64> = harga_per_row
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|v| v.is_finite())
+            .collect();
+        let (price_lower, price_upper) = iqr_bounds(&price_values);
+        let price_outlier_flags: Vec<Option<bool>> = harga_per_row
+            .iter()
+            .map(|v| v.map(|x| x < price_lower || x > price_upper))
+            .collect();
 
         let mut revenue_vals: Vec<Option<f64>> = Vec::with_capacity(row_count);
         let mut revenue_anom: Vec<Option<bool>> = Vec::with_capacity(row_count);
@@ -905,6 +935,9 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
             df.with_column(Series::new("Revenue_Anomali".into(), revenue_anom))?;
             new_columns.push("Revenue_Anomali".to_string());
         }
+
+        df.with_column(Series::new("Price_Outlier_IQR".into(), price_outlier_flags))?;
+        new_columns.push("Price_Outlier_IQR".to_string());
     }
 
     if let Some(id_name) = &id_col {
@@ -1008,7 +1041,9 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
 
     if let Some(date_name) = &date_col {
         let ds = df.column(date_name)?;
-        let current_year = chrono::Utc::now().year();
+        let lower_date = NaiveDate::from_ymd_opt(2020, 1, 1)
+            .ok_or_else(|| anyhow::anyhow!("invalid lower bound date"))?;
+        let upper_date = max_business_date;
 
         let year_out_of_range: Vec<Option<bool>> = (0..row_count)
             .map(|i| {
@@ -1016,14 +1051,31 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
                     .ok()
                     .filter(|v| !matches!(v, AnyValue::Null))
                     .map(anyvalue_to_plain_string)
-                    .and_then(|s| s.get(0..4).map(|y| y.to_string()))
-                    .and_then(|y| y.parse::<i32>().ok())
-                    .map(|y| y < 2020 || y > current_year)
+                    .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok())
+                    .map(|d| d < lower_date || d > upper_date)
+                    .or(Some(true))
             })
             .collect();
 
         df.with_column(Series::new("Tanggal_DiLuar_Range".into(), year_out_of_range))?;
         new_columns.push("Tanggal_DiLuar_Range".to_string());
+    }
+
+    if let Some(customer_name_col) = find_col_by_keywords(&df, &["nama_konsumen", "customer", "konsumen", "pelanggan", "nama"]) {
+        let cs = df.column(&customer_name_col)?;
+        let customer_ids: Vec<Option<String>> = (0..row_count)
+            .map(|i| {
+                cs.get(i)
+                    .ok()
+                    .filter(|v| !matches!(v, AnyValue::Null))
+                    .map(anyvalue_to_plain_string)
+                    .map(|v| normalize_customer_name(&v))
+                    .filter(|v| !v.is_empty())
+                    .map(|v| build_customer_id(&v))
+            })
+            .collect();
+        df.with_column(Series::new("Customer_ID".into(), customer_ids))?;
+        new_columns.push("Customer_ID".to_string());
     }
 
     let high_risk: Vec<Option<bool>> = (0..row_count)
@@ -1034,6 +1086,9 @@ fn apply_business_rules(mut df: DataFrame, new_columns: &mut Vec<String>) -> Res
                 "Revenue_Anomali",
                 "Duplikat_ID_Berbeda",
                 "Harga_Satuan_Kosong_Awal",
+                "Rating_Tidak_Valid",
+                "Tanggal_DiLuar_Range",
+                "Price_Outlier_IQR",
             ] {
                 if let Ok(s) = df.column(cn) {
                     if let Ok(v) = s.get(i) {
@@ -1271,4 +1326,46 @@ fn normalize_signature_piece(raw: &str) -> String {
     }
 
     trimmed
+}
+
+fn normalize_customer_name(raw: &str) -> String {
+    let text = raw.trim().to_ascii_lowercase();
+    if text.is_empty() {
+        return text;
+    }
+
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    match normalized.as_str() {
+        "budi s." | "budi s" | "bd santoso" => "budi santoso".to_string(),
+        _ => normalized,
+    }
+}
+
+fn build_customer_id(normalized_name: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(normalized_name.as_bytes());
+    let digest = hasher.finalize();
+    let short = format!("{:x}", digest);
+    format!("cust-{}", &short[..12])
+}
+
+fn iqr_bounds(values: &[f64]) -> (f64, f64) {
+    if values.len() < 4 {
+        return (f64::NEG_INFINITY, f64::INFINITY);
+    }
+
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let q1 = quantile_sorted(&sorted, 0.25);
+    let q3 = quantile_sorted(&sorted, 0.75);
+    let iqr = q3 - q1;
+    (q1 - 1.5 * iqr, q3 + 1.5 * iqr)
+}
+
+fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
+    if sorted.is_empty() {
+        return f64::NAN;
+    }
+    let pos = ((sorted.len() - 1) as f64 * q).round() as usize;
+    sorted[pos.min(sorted.len() - 1)]
 }

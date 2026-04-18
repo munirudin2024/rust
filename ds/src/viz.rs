@@ -10,6 +10,7 @@ use std::path::Path;
 
 use crate::audit::AuditReport;
 use crate::clean::CleanReport;
+use crate::output::html_writer::ensure_report_html_exists;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StationMetric {
@@ -75,21 +76,26 @@ pub fn build_station_summary(
         0.0
     };
 
-    let target_metrics = [
-        "PM2.5", "PM10", "SO2", "NO2", "CO", "O3", "TEMP", "PRES", "DEWP", "RAIN", "WSPM",
+    // kolom yang tidak relevan untuk metrics (flag, id, teks)
+    const EXCLUDED_SUFFIXES: &[&str] = &[
+      "id", "flag", "status", "nama", "kota", "kategori", "tanggal", "metode",
+      "cleaned_at", "customer",
     ];
 
     let mut metrics = Vec::new();
-    for metric_name in &target_metrics {
-        let mean_val = audit
-            .profiles
-            .iter()
-            .find(|p| p.name.eq_ignore_ascii_case(metric_name))
-            .and_then(|p| p.mean);
-        metrics.push(StationMetric {
-            name: (*metric_name).to_string(),
-            mean: mean_val,
-        });
+    for profile in &audit.profiles {
+      // skip kolom non-numerik atau kolom flag/metadata
+      if profile.mean.is_none() {
+        continue;
+      }
+      let name_lower = profile.name.to_lowercase();
+      if EXCLUDED_SUFFIXES.iter().any(|ex| name_lower.contains(ex)) {
+        continue;
+      }
+      metrics.push(StationMetric {
+        name: profile.name.clone(),
+        mean: profile.mean,
+      });
     }
 
     let observations = build_observations(clean_df);
@@ -119,25 +125,23 @@ pub fn run_station_comparison(
     output_root: &Path,
 ) -> Result<()> {
   let html_dir = output_root.join("html");
-
-  std::fs::create_dir_all(&html_dir).context("failed to create html output directory")?;
+  std::fs::create_dir_all(&html_dir)
+    .context("failed to create html output directory")?;
     cleanup_legacy_root_outputs(output_root)?;
 
-    let json =
-        serde_json::to_string_pretty(summaries).context("failed to serialize station summaries")?;
-    let html = build_station_comparison_html(summaries);
-
+  // hanya JSON yang di-overwrite setiap run
+  let json = serde_json::to_string_pretty(summaries)
+    .context("failed to serialize station summaries")?;
     std::fs::write(html_dir.join("report_data.json"), &json)
-      .context("failed to write html report_data.json")?;
-    std::fs::write(html_dir.join("report.generated.html"), &html)
-      .context("failed to write html report.generated.html")?;
+    .context("failed to write report_data.json")?;
 
-    // Preserve user-customized report.html across reruns.
-    let custom_report = html_dir.join("report.html");
-    if !custom_report.exists() {
-        std::fs::write(&custom_report, &html)
-            .context("failed to write initial html report.html")?;
-    }
+  // report.generated.html dihasilkan otomatis; report.html custom tetap tidak di-overwrite.
+  let generated_html = build_station_comparison_html(summaries);
+  std::fs::write(html_dir.join("report.generated.html"), generated_html)
+    .context("failed to write report.generated.html")?;
+
+  // report.html custom tetap tidak di-overwrite; jika belum ada, buat dari template embed.
+  ensure_report_html_exists(&html_dir)?;
 
     let index_html = build_report_index_html(summaries.len(), &html_dir);
     std::fs::write(output_root.join("index.html"), index_html)

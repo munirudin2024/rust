@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Report Dashboard</title>
+  <style>
+    :root {
+      --bg: #f8f4ec;
+      --ink: #1e2930;
+      --card: #ffffff;
+      --line: #e7ddd1;
+      --accent: #0f766e;
+      --muted: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Nunito Sans", "Poppins", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #fffdf8, var(--bg));
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+    .hero {
+      background: linear-gradient(120deg, #0f766e, #14b8a6 55%, #f97316 130%);
+      color: #fff;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 20px 35px -24px rgba(15, 118, 110, 0.65);
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .muted { color: var(--muted); }
+    pre {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      max-height: 480px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .ok { color: #15803d; font-weight: 700; }
+    .warn { color: #b45309; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1 style="margin:0 0 8px;">Report Dashboard</h1>
+      <p style="margin:0;">Template default otomatis dari pipeline. Ubah file ini jika ingin versi custom.</p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 8px; color: var(--accent);">Status Data</h2>
+      <p id="status" class="muted">Memuat report_data.json ...</p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 8px; color: var(--accent);">Preview JSON</h2>
+      <pre id="json-preview">(belum ada data)</pre>
+    </section>
+  </main>
+
+  <script>
+    (async function () {
+      var status = document.getElementById('status');
+      var preview = document.getElementById('json-preview');
+      try {
+        var res = await fetch('./report_data.json', { cache: 'no-store' });
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        var data = await res.json();
+        var totalRows = Array.isArray(data)
+          ? data.reduce(function (acc, x) { return acc + (x.total_rows || 0); }, 0)
+          : 0;
+        status.innerHTML = '<span class="ok">OK</span> report_data.json terbaca. Dataset: '
+          + (Array.isArray(data) ? data.length : 0)
+          + ', total rows: ' + totalRows + '.';
+        preview.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        status.innerHTML = '<span class="warn">PERINGATAN</span> report_data.json belum tersedia atau gagal dibaca.';
+        preview.textContent = String(err);
+      }
+    })();
+  </script>
+</body>
+</html>
