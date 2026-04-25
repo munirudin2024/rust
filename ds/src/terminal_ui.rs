@@ -80,6 +80,21 @@ impl TerminalStyle {
         self.cyan(text)
     }
 
+    pub fn field_line(&self, prefix: &str, label: &str, value: &str, label_width: usize) -> String {
+        let padded_label = format!("{:<width$}", label, width = label_width);
+
+        if !self.enabled {
+            return format!("{} {} : {}", prefix, padded_label, value);
+        }
+
+        format!(
+            "{} {} : {}",
+            self.cyan(prefix),
+            self.bold(&padded_label),
+            self.green(value)
+        )
+    }
+
     pub fn divider(&self, width: usize) -> String {
         if width == 0 {
             return String::new();

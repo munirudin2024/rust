@@ -318,20 +318,10 @@ fn print_audit_summary(report: &AuditReport) {
         100.0
     };
 
-    println!(
-        "├─ Total Baris   : {} baris",
-        format_number(report.total_rows),
-    );
-    println!(
-        "├─ Total Kolom   : {} kolom",
-        report.total_cols
-    );
-    println!(
-        "├─ Duplikat      : {} baris (Keunikan: {:.1}%)",
-        format_number(report.duplicate_rows),
-        uniqueness_pct
-    );
-    println!("└─ Kelengkapan   : {:.1}%", completeness_pct);
+    println!("{}", ui.field_line("├─", "Total Baris", &format!("{} baris", format_number(report.total_rows)), 14));
+    println!("{}", ui.field_line("├─", "Total Kolom", &format!("{} kolom", report.total_cols), 14));
+    println!("{}", ui.field_line("├─", "Duplikat", &format!("{} baris (Keunikan: {:.1}%)", format_number(report.duplicate_rows), uniqueness_pct), 14));
+    println!("{}", ui.field_line("└─", "Kelengkapan", &format!("{:.1}%", completeness_pct), 14));
 
     let mut red = 0usize;
     let mut yellow = 0usize;

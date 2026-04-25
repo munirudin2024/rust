@@ -28,23 +28,44 @@ fn main() -> Result<()> {
         ui.stage_overview(&pipeline::section_header_with_clause("[0/4]", "EKSPLORASI DATA AWAL", "ISO 8000-8"))
     );
     println!("{}", ui.header("Pipeline Pembersih Data v0.3.0-iso"));
-    println!("├─ Waktu Mulai    : {}", format_indonesian_timestamp(started));
-    println!("├─ Jumlah Dataset : {} file", config.input_files.len());
-    println!("├─ Mode ISO       : TINGKAT 5 (Optimizing berbasis pengukuran)");
     println!(
-        "├─ Policy Imputasi: min_conf={:.2}; action={}; tolerance_pct={:.2}",
-        config.imputation_policy.min_confidence,
-        config.imputation_policy.below_threshold_action,
-        config.imputation_policy.tolerance_pct
+        "{}",
+        ui.field_line("├─", "Waktu Mulai", &format_indonesian_timestamp(started), 16)
     );
-    println!("├─ Sertifikasi    : ISO 8000-110, ISO 8000-8, ISO/IEC 25012");
     println!(
-        "└─ Mode Operasi   : {}",
-        if config.hard_reject {
-            "HARD REJECT"
-        } else {
-            "NORMAL"
-        }
+        "{}",
+        ui.field_line("├─", "Jumlah Dataset", &format!("{} file", config.input_files.len()), 16)
+    );
+    println!(
+        "{}",
+        ui.field_line("├─", "Mode ISO", "TINGKAT 5 (Optimizing berbasis pengukuran)", 16)
+    );
+    println!(
+        "{}",
+        ui.field_line(
+            "├─",
+            "Policy Imputasi",
+            &format!(
+                "min_conf={:.2}; action={}; tolerance_pct={:.2}",
+                config.imputation_policy.min_confidence,
+                config.imputation_policy.below_threshold_action,
+                config.imputation_policy.tolerance_pct
+            ),
+            16,
+        )
+    );
+    println!(
+        "{}",
+        ui.field_line("├─", "Sertifikasi", "ISO 8000-110, ISO 8000-8, ISO/IEC 25012", 16)
+    );
+    println!(
+        "{}",
+        ui.field_line(
+            "└─",
+            "Mode Operasi",
+            if config.hard_reject { "HARD REJECT" } else { "NORMAL" },
+            16,
+        )
     );
 
     let result = pipeline::run_all(&config)?;
@@ -52,20 +73,35 @@ fn main() -> Result<()> {
 
     for dataset in &result.datasets {
         println!("{}", ui.info(&format!("- {}", dataset.source_file.display())));
-        println!("├─ bersih    : {}", dataset.artifacts.cleaned_csv.display());
-        println!("├─ muatan    : {}", dataset.artifacts.payload_csv.display());
-        println!("├─ log_audit : {}", dataset.artifacts.audit_log_csv.display());
-        println!("├─ kpi       : {}", dataset.artifacts.kpi_csv.display());
-        println!("└─ presentasi: {}", dataset.artifacts.presentasi_html.display());
+        println!(
+            "{}",
+            ui.field_line("├─", "bersih", &dataset.artifacts.cleaned_csv.display().to_string(), 12)
+        );
+        println!(
+            "{}",
+            ui.field_line("├─", "muatan", &dataset.artifacts.payload_csv.display().to_string(), 12)
+        );
+        println!(
+            "{}",
+            ui.field_line("├─", "log_audit", &dataset.artifacts.audit_log_csv.display().to_string(), 12)
+        );
+        println!(
+            "{}",
+            ui.field_line("├─", "kpi", &dataset.artifacts.kpi_csv.display().to_string(), 12)
+        );
+        println!(
+            "{}",
+            ui.field_line("└─", "presentasi", &dataset.artifacts.presentasi_html.display().to_string(), 12)
+        );
     }
 
     println!("{}", ui.divider(74));
     println!("{}", ui.header("RINGKASAN PEMROSESAN:"));
-    println!("├─ Dataset diproses      : {}", summary.dataset_count);
-    println!("├─ Total baris akhir     : {}", summary.total_rows);
-    println!("├─ Duplikat terhapus     : {}", summary.total_dropped_duplicates);
-    println!("├─ Total baris karantina : {}", summary.total_quarantine_rows);
-    println!("└─ Laporan data          : {}", result.report_json.display());
+    println!("{}", ui.field_line("├─", "Dataset diproses", &summary.dataset_count.to_string(), 21));
+    println!("{}", ui.field_line("├─", "Total baris akhir", &summary.total_rows.to_string(), 21));
+    println!("{}", ui.field_line("├─", "Duplikat terhapus", &summary.total_dropped_duplicates.to_string(), 21));
+    println!("{}", ui.field_line("├─", "Total baris karantina", &summary.total_quarantine_rows.to_string(), 21));
+    println!("{}", ui.field_line("└─", "Laporan data", &result.report_json.display().to_string(), 21));
 
     // STAGE 4: Final ISO Validation & Report Generation
     println!();
