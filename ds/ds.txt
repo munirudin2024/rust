@@ -1,0 +1,329 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              data_cleaner — Panduan Lengkap Penggunaan                      ║
+║              Versi pipeline : v0.3.0-iso                                    ║
+║              Standar        : ISO 8000-110 · ISO 8000-8 · ISO/IEC 25012     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  APA INI?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  data_cleaner adalah pipeline pembersihan data CSV berbasis Rust untuk
+  menghasilkan dataset yang bersih, teraudit, tertelusur, dan siap dipakai
+  sesuai prinsip kualitas data ISO 8000.
+
+  Tool ini bersifat universal:
+  - Dapat dipakai di e-commerce, perbankan, medis, dan teknologi.
+  - Perilaku pipeline dikontrol dari file konfigurasi per deployment.
+  - Tidak perlu ubah kode Rust untuk mengganti policy domain.
+
+  Pipeline inti (4 tahap):
+  [1/4] Pemeriksaan kualitas data awal
+  [2/4] Pembersihan data + upstream guard
+  [3/4] Feature engineering + indikator kualitas
+  [4/4] Validasi akhir + export artefak ISO-compliant
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PREREQUISITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Sistem operasi:
+  - Linux: didukung
+  - macOS: didukung
+  - Windows: gunakan WSL
+
+  Dependensi:
+  - Rust + Cargo (stable)
+  - Akses baca file CSV
+  - Akses tulis ke folder output/
+
+  Verifikasi:
+    rustc --version
+    cargo --version
+
+  Jalankan semua command dari folder project:
+    cd ds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  QUICK START
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1) Build
+    cargo build
+
+  2) Jalankan satu file
+    cargo run -- data/dataset_transaksi_ecommerce.csv
+
+  3) Jalankan banyak file
+    cargo run -- data/file1.csv data/file2.csv
+    cargo run -- data/PRSA_Data_20130301-20170228/*.csv
+    cargo run -- "data/E-Commerce Public Dataset/*.csv"
+    cargo run -- data/Bike-sharing-dataset/*.csv
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FORMAT INPUT CSV
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Syarat minimal:
+  - CSV valid dengan header.
+
+  Kolom umum retail/e-commerce (disarankan):
+  - ID_Transaksi / transaction_id
+  - Tanggal_Pembelian / transaction_date
+  - Harga_Satuan / price
+  - Jumlah_Beli / quantity
+  - Diskon_Rupiah / discount
+  - Penilaian_Bintang / rating
+
+  Catatan:
+  - Jika sebagian kolom tidak ada, pipeline tetap berjalan.
+  - Fitur/validasi terkait kolom yang hilang akan dilewati otomatis.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ARGUMEN CLI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  --hard-reject
+    Baris bermasalah langsung ke quarantine.
+
+  --max-date YYYY-MM-DD
+    Cutoff tanggal bisnis manual.
+
+  --validate-iso
+    Aktifkan validasi ISO sebelum cleaning (stage 1.5).
+
+  --generate-sample
+    Generate sampel manual review 1%.
+
+  --quality-dashboard
+    Generate dashboard kualitas HTML.
+
+  --pipeline-config path/to/pipeline.toml
+    Muat policy imputasi dari konfigurasi eksternal.
+
+  Contoh lengkap:
+    cargo run -- data/dataset_transaksi_ecommerce.csv \
+      --validate-iso \
+      --quality-dashboard \
+      --pipeline-config config/pipeline.toml
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  KONFIGURASI pipeline.toml
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Contoh isi:
+
+    [imputation]
+    min_confidence = 0.80
+    below_threshold_action = "fill_with_flag"
+    tolerance_pct = 1.0
+
+  Opsi below_threshold_action:
+  - fill_with_flag
+  - null
+  - quarantine
+  - missing_verified
+
+  Makna parameter:
+  - min_confidence: ambang confidence imputasi
+  - below_threshold_action: aksi jika di bawah ambang
+  - tolerance_pct: toleransi selisih formula
+
+  Verifikasi runtime (harus muncul di terminal):
+    Policy Imputasi: min_conf=...; action=...; tolerance_pct=...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PROFIL DEPLOYMENT CEPAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Profil A — Bank / Audit
+    min_confidence = 0.95
+    below_threshold_action = "null"
+    tolerance_pct = 0.0
+    Rekomendasi run: --validate-iso --hard-reject
+
+  Profil B — E-Commerce / Retail
+    min_confidence = 0.80
+    below_threshold_action = "fill_with_flag"
+    tolerance_pct = 5.0
+    Rekomendasi run: --validate-iso --quality-dashboard
+
+  Profil C — Fintech / Medis
+    min_confidence = 0.90
+    below_threshold_action = "quarantine"
+    tolerance_pct = 0.0
+    Rekomendasi run: --validate-iso --hard-reject --generate-sample
+
+  Profil D — Tech Company
+    min_confidence = 0.80
+    below_threshold_action = "fill_with_flag"
+    tolerance_pct = 2.0
+    Rekomendasi run: --validate-iso --quality-dashboard
+
+  Profil E — Riset / Data Science
+    min_confidence = 0.70
+    below_threshold_action = "missing_verified"
+    tolerance_pct = 10.0
+    Rekomendasi run: --validate-iso --quality-dashboard --generate-sample
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OUTPUT YANG DIHASILKAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  output/csv/
+  - <nama_file>.csv
+  - transaksi_clean/
+  - transaksi_audit_log/
+  - kpi_kualitas/
+  - per_tahun/<tahun>/
+
+  output/iso_compliant/
+  - *_audit.json
+  - *_provenance.json
+  - *_summary.json
+  - *_dashboard.html
+  - *_metrics.csv
+  - *_manual_review.json
+  - *_record_provenance.json
+  - *_quarantine_candidates.json
+  - *_upstream_tickets.json
+
+  output/quarantine/
+  - *_upstream_rejected.csv
+  - duplikat_dihapus_*.csv
+  - *.csv (jika hard-reject)
+
+  output lain:
+  - output/validation/
+  - output/review/
+  - output/feedback/
+  - output/audit/
+  - output/laporan/
+  - output/html/report_data.json
+
+  Catatan jumlah artefak ISO:
+  - Umumnya 9 file saat manual review dan ticket aktif.
+  - Bisa lebih sedikit jika kondisi tertentu tidak memicu artefak tambahan.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONTOH OUTPUT TERMINAL SUKSES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Mode ISO tampil
+  - Policy Imputasi tampil
+  - [UPSTREAM-GUARD] tampil jika ada reject pra-pipeline
+  - Ringkasan pemrosesan tampil
+  - Ringkasan export file tampil
+  - Baris sukses sertifikasi tampil
+  - Header tahap tampil dengan tema warna per-stage (audit/clean/fitur/validasi)
+
+  Fallback kompatibilitas terminal:
+  - Untuk mematikan warna ANSI: NO_COLOR=1 cargo run -- data/dataset_transaksi_ecommerce.csv
+
+  Kolom policy yang muncul di dataset:
+  - Low_Confidence_Imputation
+  - MISSING_VERIFIED
+  - imputation_confidence_policy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1) cargo build gagal
+    - cargo clean
+    - cargo build
+    - rustup update stable
+
+  2) Output file tidak muncul
+    - Cek path input CSV
+    - Cek izin tulis output/
+
+  3) Banyak baris hilang
+    - Cek apakah --hard-reject aktif
+    - Cek output/quarantine/
+
+  4) Policy tidak sesuai
+    - Cek file --pipeline-config
+    - Cek baris "Policy Imputasi" di terminal
+
+  5) Wildcard tidak terbaca
+    - Gunakan quote jika path mengandung spasi
+    - Contoh: "data/E-Commerce Public Dataset/*.csv"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PAKET UNTUK JURI AUDIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  WAJIB:
+  1. output/csv/dataset_transaksi_ecommerce.csv
+  2. output/csv/transaksi_audit_log/dataset_transaksi_ecommerce.csv
+  3. output/csv/transaksi_clean/dataset_transaksi_ecommerce.csv
+  4. output/csv/kpi_kualitas/dataset_transaksi_ecommerce.csv
+
+  TAMBAHAN (jika diminta):
+  5. output/quarantine/duplikat_dihapus_dataset_transaksi_ecommerce.csv
+  6. output/quarantine/dataset_transaksi_ecommerce_upstream_rejected.csv
+  7. output/quarantine/dataset_transaksi_ecommerce.csv (jika hard-reject)
+
+  BONUS ISO:
+  8.  output/iso_compliant/*_audit.json
+  9.  output/iso_compliant/*_upstream_tickets.json
+  10. output/iso_compliant/*_dashboard.html
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PERJALANAN 3 RUN (20 APRIL 2026)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Run v1 (00:13 UTC)
+  - Baseline ISO 8000 Tingkat 5
+  - Syntactic 99.8%
+  - Semantic 97.0%
+  - 6 duplikat dihapus dalam pipeline
+  - 8 file ISO
+  - Formula revenue: qty x price
+  - Upstream guard belum aktif
+
+  Run v2 (00:30 UTC)
+  - Upstream prevention aktif
+  - Syntactic 100%
+  - Consistency 100%
+  - 5 baris ditolak pra-pipeline
+  - +UPSTREAM-GUARD
+  - +upstream_tickets.json
+  - Formula revenue diperbarui
+  - 9 file ISO
+  - Duplikat dalam pipeline turun ke 1
+
+  Run v3 (00:50 UTC)
+  - Arsitektur universal (config-driven)
+  - Syntactic 100%
+  - Consistency 100%
+  - Policy dibaca dari config
+  - min_conf=0.80
+  - action=fill_with_flag
+  - tolerance_pct=1.00
+  - Bisa diganti tanpa ubah kode
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CATATAN ARSITEKTUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Yang tetap antar deployment:
+  - Upstream guard
+  - Audit trail ISO
+  - Deduplikasi
+  - Feature engineering
+  - Manual review queue
+  - Export artefak ISO
+
+  Yang berubah via config:
+  - Threshold confidence
+  - Aksi di bawah threshold
+  - Toleransi formula
+
+  Transparansi policy (contoh runtime):
+  Policy Imputasi: min_conf=0.80; action=fill_with_flag; tolerance_pct=1.00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  data_cleaner v0.3.0-iso · ISO 8000 Tingkat 5 · Rust
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

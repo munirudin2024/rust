@@ -46,8 +46,12 @@ pub fn write_report_json(
 	summaries:   &[DatasetSummary],
 	output_root: &Path,
 ) -> Result<std::path::PathBuf> {
+	let _ = crate::output::pathing::ensure_dir_structure(output_root)?;
+
 	let html_dir = output_root.join("html");
+	let legacy_html_dir = output_root.join("legacy").join("html");
 	std::fs::create_dir_all(&html_dir).context("failed to create output/html")?;
+	std::fs::create_dir_all(&legacy_html_dir).context("failed to create output/legacy/html")?;
 
 	let json = serde_json::to_string_pretty(summaries)
 		.context("failed to serialize summaries")?;
@@ -56,7 +60,12 @@ pub fn write_report_json(
 	std::fs::write(&json_path, &json)
 		.context("failed to write report_data.json")?;
 
+	let legacy_json_path = legacy_html_dir.join("report_data.json");
+	std::fs::write(&legacy_json_path, &json)
+		.context("failed to write legacy report_data.json")?;
+
 	ensure_report_html_exists(&html_dir)?;
+	ensure_report_html_exists(&legacy_html_dir)?;
 
 	Ok(json_path)
 }

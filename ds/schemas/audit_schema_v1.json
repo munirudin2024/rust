@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ISO Audit Log Schema",
+  "type": "object",
+  "properties": {
+    "audit_metadata": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu audit dilakukan"
+        },
+        "dataset": {
+          "type": "string",
+          "description": "Nama dataset yang diaudit"
+        },
+        "standard": {
+          "type": "string",
+          "enum": ["ISO 8000-110", "ISO 8000-8", "ISO/IEC 25012"]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": ["timestamp", "dataset", "standard"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}[0-9]{3,4}$",
+            "description": "Finding ID (e.g., AUD0001)"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "DUPLICATE",
+              "NULL_VALUE",
+              "INVALID_FORMAT",
+              "OUTLIER",
+              "CONSTRAINT_VIOLATION"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "affected_records": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "affected_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "remediation": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "category", "severity", "description"]
+      }
+    },
+    "quality_metrics": {
+      "type": "object",
+      "properties": {
+        "total_records": {
+          "type": "integer"
+        },
+        "valid_records": {
+          "type": "integer"
+        },
+        "validity_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0
+        },
+        "completeness_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0
+        }
+      }
+    }
+  },
+  "required": ["audit_metadata", "findings"]
+}
