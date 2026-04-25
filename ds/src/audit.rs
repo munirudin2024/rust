@@ -469,19 +469,19 @@ fn print_audit_summary(report: &AuditReport) {
     println!("{}", ui.header("RINGKASAN [LEGACY]:"));
 
     if red > 0 {
-        println!("{}", ui.critical(&format!("├─ [KRITIS] Kosong   : {} kolom bermasalah", red)));
+        println!("{}", ui.critical(&format!("├─ [FAIL] Kosong   : {} kolom bermasalah", red)));
     }
     if yellow > 0 {
-        println!("{}", ui.caution(&format!("├─ [WARN]   Kosong   : {} kolom perlu perhatian", yellow)));
+        println!("{}", ui.caution(&format!("├─ [WARN] Kosong   : {} kolom perlu perhatian", yellow)));
     }
     if red == 0 && yellow == 0 {
-        println!("{}", ui.good("├─ [OK]     Kosong   : semua kolom relatif bersih"));
+        println!("{}", ui.good("├─ [OK] Kosong   : semua kolom relatif bersih"));
     }
 
     if outlier_red > 0 {
-        println!("{}", ui.critical(&format!("└─ [KRITIS] Outlier  : {} kolom dengan pencilan > 5%", outlier_red)));
+        println!("{}", ui.critical(&format!("└─ [FAIL] Outlier  : {} kolom dengan pencilan > 5%", outlier_red)));
     } else {
-        println!("{}", ui.good("└─ [OK]     Outlier  : tidak ada pencilan signifikan"));
+        println!("{}", ui.good("└─ [OK] Outlier  : tidak ada pencilan signifikan"));
     }
 }
 

@@ -663,6 +663,7 @@ mod tests {
 			false,
 			false,
 			"0.1.0",
+			&crate::config::ImputationPolicy::default(),
 		)
 		.unwrap();
 

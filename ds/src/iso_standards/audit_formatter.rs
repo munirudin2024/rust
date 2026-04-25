@@ -19,10 +19,10 @@ impl ISOAuditFormatter {
         
         for score in scores {
             let icon = match score.status {
-                ComplianceStatus::Compliant => "✅",
-                ComplianceStatus::Warning => "⚠️ ",
-                ComplianceStatus::NonCompliant => "❌",
-                ComplianceStatus::NotMeasured => "➖",
+                ComplianceStatus::Compliant => "OK",
+                ComplianceStatus::Warning => "WARN",
+                ComplianceStatus::NonCompliant => "FAIL",
+                ComplianceStatus::NotMeasured => "INFO",
             };
             
             output.push_str(&format!(
@@ -80,9 +80,13 @@ impl ISOAuditFormatter {
                 0.0
             };
             
-            let status_icon = if pass_rate >= 95.0 { "✅" } 
-                             else if pass_rate >= 80.0 { "⚠️ " } 
-                             else { "❌" };
+            let status_icon = if pass_rate >= 95.0 {
+                "OK"
+            } else if pass_rate >= 80.0 {
+                "WARN"
+            } else {
+                "FAIL"
+            };
             
             output.push_str(&format!(
                 "   {} [{}] {}: {:.1}% lolos ({}/{})\n",
@@ -180,20 +184,20 @@ impl ISOAuditFormatter {
             "Tingkat Kepatuhan Keseluruhan: {}/5\n\
              Siap Sertifikasi: {}\n",
             report.final_assessment.overall_compliance_level,
-            if report.final_assessment.certification_ready { "YA ✅" } else { "TIDAK ❌" }
+            if report.final_assessment.certification_ready { "YA [OK]" } else { "TIDAK [FAIL]" }
         ));
         
         if !report.final_assessment.critical_gaps.is_empty() {
             output.push_str("\nCelah Kritis:\n");
             for gap in &report.final_assessment.critical_gaps {
-                output.push_str(&format!("  ❌ {}\n", gap));
+                output.push_str(&format!("  FAIL {}\n", gap));
             }
         }
         
         if !report.final_assessment.recommendations.is_empty() {
             output.push_str("\nRekomendasi:\n");
             for rec in &report.final_assessment.recommendations {
-                output.push_str(&format!("  ➡️  {}\n", rec));
+                output.push_str(&format!("  -> {}\n", rec));
             }
         }
         

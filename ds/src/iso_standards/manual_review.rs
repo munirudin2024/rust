@@ -323,7 +323,7 @@ impl ManualReviewTracker {
 
     pub fn display_queue(&self) -> String {
         if self.cases.is_empty() {
-            return "  ✅ Tidak ada tinjauan manual yang diperlukan\n".to_string();
+            return "  OK Tidak ada tinjauan manual yang diperlukan\n".to_string();
         }
 
         let mut lines = Vec::new();
@@ -378,7 +378,7 @@ impl ManualReviewTracker {
 
         if pending > 0 {
             lines.push(format!(
-                "  ⚠️  Eskalasi: {} (pemberitahuan otomatis tertunda)",
+                "  WARN Eskalasi: {} (pemberitahuan otomatis tertunda)",
                 self.escalation_contact
             ));
         }

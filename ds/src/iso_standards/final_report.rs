@@ -35,7 +35,7 @@ impl FinalISOReport {
         let mut lines = Vec::new();
 
         lines.push("╔══════════════════════════════════════════════════════════════════════════════╗".to_string());
-        lines.push("║             🏆  LAPORAN KEPATUHAN ISO 8000 & ISO/IEC 25012                  ║".to_string());
+        lines.push("║        LAPORAN KEPATUHAN ISO 8000 & ISO/IEC 25012 - STATUS LAYAK          ║".to_string());
         lines.push(format!(
             "║{:^78}║",
             format!(
@@ -45,7 +45,7 @@ impl FinalISOReport {
         ));
         lines.push("╚══════════════════════════════════════════════════════════════════════════════╝".to_string());
 
-        lines.push(Self::section_header("📋 METADATA LAPORAN"));
+        lines.push(Self::section_header("METADATA LAPORAN"));
         lines.push(Self::kv_line("ID Laporan", &report.metadata.report_id));
         lines.push(Self::kv_line("Waktu Dibuat", &report.metadata.generated_at));
         lines.push(Self::kv_line("Nama Dataset", &report.metadata.dataset_name));
@@ -56,7 +56,7 @@ impl FinalISOReport {
         lines.push(Self::kv_line("Versi Pipeline", &report.metadata.pipeline_version));
         lines.push(Self::kv_line("Git Commit", &report.metadata.git_commit_hash));
 
-        lines.push(Self::section_header("🧭 SKOR 3-LEVEL ISO 8000-8"));
+        lines.push(Self::section_header("SKOR 3-LEVEL ISO 8000-8"));
         let syntactic = Self::find_dimension_score(report, "Syntactic");
         let semantic = Self::find_dimension_score(report, "Semantic");
         let pragmatic = Self::find_dimension_score(report, "Pragmatic");
@@ -64,7 +64,7 @@ impl FinalISOReport {
         lines.push(format!("  Semantic  : {:>6.1}%", semantic * 100.0));
         lines.push(format!("  Pragmatic : {:>6.1}%", pragmatic * 100.0));
 
-        lines.push(Self::section_header("📊 DIMENSI KUALITAS ISO/IEC 25012"));
+        lines.push(Self::section_header("DIMENSI KUALITAS ISO/IEC 25012"));
         for score in &report.quality_dimensions {
             let (icon, status_str) = Self::status_icon(&score.status);
             lines.push(format!(
@@ -77,15 +77,15 @@ impl FinalISOReport {
         }
 
         if let Some(tracker) = review_tracker {
-            lines.push(Self::section_header("🚨 ANTRIAN TINJAUAN MANUAL (ISO 8000-8.5)"));
+            lines.push(Self::section_header("ANTRIAN TINJAUAN MANUAL (ISO 8000-8.5)"));
             lines.push(tracker.display_queue());
-            lines.push(Self::section_header("🧩 RINGKASAN KATEGORI AKAR MASALAH"));
+            lines.push(Self::section_header("RINGKASAN KATEGORI AKAR MASALAH"));
             for (category, count) in Self::root_cause_categories(tracker) {
                 lines.push(format!("  - {:<28} {} kasus", category, count));
             }
         }
 
-        lines.push(Self::section_header("🏁 PENILAIAN AKHIR"));
+        lines.push(Self::section_header("PENILAIAN AKHIR"));
         lines.push(format!(
             "  Tingkat Kepatuhan: {}/5",
             report.final_assessment.overall_compliance_level
@@ -93,9 +93,9 @@ impl FinalISOReport {
         lines.push(format!(
             "  Status Sertifikasi: {}",
             if report.final_assessment.certification_ready {
-                "SIAP ✅"
+                "SIAP [OK]"
             } else {
-                "BELUM SIAP ❌"
+                "BELUM SIAP [FAIL]"
             }
         ));
         lines.push(format!(
@@ -105,26 +105,26 @@ impl FinalISOReport {
 
         lines.push(String::new());
         lines.push("╔══════════════════════════════════════════════════════════════════════════════╗".to_string());
-        lines.push(format!("║  📁 AUDIT:  output/iso_compliant/{}_{}_audit.json", timestamp, safe_name));
-        lines.push(format!("║  📁 ASAL:   output/iso_compliant/{}_{}_provenance.json", timestamp, safe_name));
-        lines.push(format!("║  📁 RINGK.: output/iso_compliant/{}_{}_summary.json", timestamp, safe_name));
-        lines.push(format!("║  📁 DASH:   output/iso_compliant/{}_{}_dashboard.html", timestamp, safe_name));
-        lines.push(format!("║  📁 METRIK: output/iso_compliant/{}_{}_metrics.csv", timestamp, safe_name));
+        lines.push(format!("║  AUDIT:   output/iso_compliant/{}_{}_audit.json", timestamp, safe_name));
+        lines.push(format!("║  ASAL:    output/iso_compliant/{}_{}_provenance.json", timestamp, safe_name));
+        lines.push(format!("║  RINGK.:  output/iso_compliant/{}_{}_summary.json", timestamp, safe_name));
+        lines.push(format!("║  DASH:    output/iso_compliant/{}_{}_dashboard.html", timestamp, safe_name));
+        lines.push(format!("║  METRIK:  output/iso_compliant/{}_{}_metrics.csv", timestamp, safe_name));
         if review_tracker.is_some() {
             lines.push(format!(
-                "║  📁 TINJAU: output/iso_compliant/{}_{}_manual_review.json",
+                "║  TINJAU:  output/iso_compliant/{}_{}_manual_review.json",
                 timestamp, safe_name
             ));
             lines.push(format!(
-                "║  📁 JEJAK:  output/iso_compliant/{}_{}_record_provenance.json",
+                "║  JEJAK:   output/iso_compliant/{}_{}_record_provenance.json",
                 timestamp, safe_name
             ));
             lines.push(format!(
-                "║  📁 KARAN:  output/iso_compliant/{}_{}_quarantine_candidates.json",
+                "║  KARAN:   output/iso_compliant/{}_{}_quarantine_candidates.json",
                 timestamp, safe_name
             ));
             lines.push(format!(
-                "║  📁 TIKET:  output/iso_compliant/{}_{}_upstream_tickets.json",
+                "║  TIKET:   output/iso_compliant/{}_{}_upstream_tickets.json",
                 timestamp, safe_name
             ));
         }
@@ -143,10 +143,10 @@ impl FinalISOReport {
 
     fn status_icon(status: &ComplianceStatus) -> (&'static str, &'static str) {
         match status {
-            ComplianceStatus::Compliant => ("✅", "LULUS"),
-            ComplianceStatus::Warning => ("⚠️", "PERINGATAN"),
-            ComplianceStatus::NonCompliant => ("❌", "GAGAL"),
-            ComplianceStatus::NotMeasured => ("ℹ️", "TIDAK DINILAI"),
+            ComplianceStatus::Compliant => ("OK", "LULUS"),
+            ComplianceStatus::Warning => ("WARN", "PERINGATAN"),
+            ComplianceStatus::NonCompliant => ("FAIL", "GAGAL"),
+            ComplianceStatus::NotMeasured => ("INFO", "TIDAK DINILAI"),
         }
     }
 
@@ -275,7 +275,7 @@ impl FinalISOReport {
         };
 
         println!(
-            "✅ Diekspor {} file ke {}/",
+            "OK Diekspor {} file ke {}/",
             if manual_review_file.is_some() { 9 } else { 5 },
             output_dir
         );

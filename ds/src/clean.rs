@@ -1529,8 +1529,8 @@ fn print_clean_summary(report: &CleanReport) {
 
     println!();
     println!("{}", ui.header("RINGKASAN [LEGACY]:"));
-    println!("{}", ui.neutral(&format!("├─ [INFO] Terisi   : {} nilai kosong (median/modus)", total_filled)));
-    println!("{}", ui.neutral(&format!("└─ [INFO] Dibatasi : {} outlier (winsorizing IQR)", total_capped)));
+    println!("{}", ui.good(&format!("├─ [OK] Terisi   : {} nilai kosong (median/modus)", total_filled)));
+    println!("{}", ui.good(&format!("└─ [OK] Dibatasi : {} outlier (winsorizing IQR)", total_capped)));
 
     println!();
     println!(
@@ -1576,7 +1576,7 @@ fn print_clean_summary(report: &CleanReport) {
 
     println!();
     println!("{}", ui.header("RINGKASAN [LEGACY]:"));
-    println!("{}", ui.neutral(&format!("└─ [INFO] Dibuat   : {} kolom baru", report.new_columns.len())));
+    println!("{}", ui.good(&format!("└─ [OK] Dibuat   : {} kolom baru", report.new_columns.len())));
 
     for col in &report.new_columns {
         println!("       → {}", format_feature_label(col));
