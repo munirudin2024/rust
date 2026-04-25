@@ -1,0 +1,68 @@
+name: Retail & E-Commerce Data Quality Rules
+version: 1.0.0
+domain: E-Commerce Transactions
+
+transaction_validation:
+  amount:
+    min: 0.01
+    max: 999999.99
+    currency_code: "IDR"
+    warn_if_zero: true
+    warn_if_exceeds_avg_by: 5.0
+
+  payment_methods:
+    valid_values:
+      - "credit_card"
+      - "debit_card"
+      - "bank_transfer"
+      - "e_wallet"
+      - "cash_on_delivery"
+
+  customer_info:
+    email_pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    phone_pattern: "^[+]?[0-9]{9,15}$"
+
+  dates:
+    order_date_cannot_be_future: true
+    delivery_date_after_order: true
+    refund_date_after_order: true
+
+validation_rules:
+  - rule_id: "RET001"
+    description: "Amount must be positive and non-zero"
+    severity: "CRITICAL"
+  
+  - rule_id: "RET002"
+    description: "Payment method must be from valid list"
+    severity: "HIGH"
+  
+  - rule_id: "RET003"
+    description: "Customer email must be valid format"
+    severity: "MEDIUM"
+  
+  - rule_id: "RET004"
+    description: "Order date cannot be in future"
+    severity: "CRITICAL"
+  
+  - rule_id: "RET005"
+    description: "Duplicate transaction_id not allowed"
+    severity: "CRITICAL"
+
+business_logic:
+  items_count_vs_amount:
+    description: "Total amount should match sum of item prices"
+    tolerance_pct: 1.0
+
+  discount_rules:
+    max_discount_pct: 50.0
+    warn_if_exceeds: 30.0
+
+completeness:
+  minimum_required_fields:
+    - "transaction_id"
+    - "customer_id"
+    - "amount"
+    - "transaction_date"
+    - "payment_method"
+  warn_if_missing_pct_above: 1.0
+  fail_if_missing_pct_above: 5.0

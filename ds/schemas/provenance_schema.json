@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Data Provenance & Lineage Schema",
+  "type": "object",
+  "properties": {
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_dataset": {
+          "type": "string",
+          "description": "Nama file/dataset sumber"
+        },
+        "source_location": {
+          "type": "string",
+          "description": "Path atau URI sumber data"
+        },
+        "data_owner": {
+          "type": "string"
+        },
+        "transformations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "description": "Nama transformasi (e.g., 'duplicate_removal', 'null_imputation')"
+              },
+              "description": {
+                "type": "string"
+              },
+              "applied_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "affected_records": {
+                "type": "integer"
+              },
+              "parameters": {
+                "type": "object"
+              }
+            },
+            "required": ["step_id", "name", "applied_at"]
+          }
+        },
+        "quality_gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate_name": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "threshold": {
+                "type": "number"
+              },
+              "actual_value": {
+                "type": "number"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["gate_name", "passed"]
+          }
+        },
+        "output_dataset": {
+          "type": "string",
+          "description": "Nama file/dataset hasil"
+        },
+        "output_location": {
+          "type": "string"
+        }
+      },
+      "required": ["timestamp", "source_dataset", "transformations"]
+    }
+  },
+  "required": ["provenance"]
+}

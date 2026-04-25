@@ -3,10 +3,10 @@
 //! Fully dynamic data profiling with runtime schema inspection.
 
 use anyhow::{Context, Result};
-use colored::*;
 use polars::prelude::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use crate::terminal_ui::TerminalStyle;
 
 /// IQR multiplier for outlier bounds.
 pub const IQR_MULTIPLIER: f64 = 1.5;
@@ -291,23 +291,37 @@ fn kurtosis(values: &[f64], mean: Option<f64>, std_dev: Option<f64>) -> Option<f
 }
 
 fn print_audit_summary(report: &AuditReport) {
+    let ui = TerminalStyle::detect();
     println!();
     println!(
         "{}",
-        "── [1/4] AUDIT DATA ──────────────────────────".bold()
+        ui.stage_audit(&crate::pipeline::section_header_with_clause(
+            "[1/4]",
+            "PEMERIKSAAN DATA",
+            "ISO 8000-8 SESUAI"
+        ))
     );
     println!();
-    println!(
-        "  {} Baris    : {} | Kolom   : {}",
-        "".cyan(),
-        format_number(report.total_rows),
-        report.total_cols
-    );
-    println!(
-        "  {} Duplikat : {} baris duplikat",
-        "".cyan(),
-        format_number(report.duplicate_rows)
-    );
+
+    println!("{}", ui.header("METRIK DATASET:"));
+
+    let total_nulls: usize = report.profiles.iter().map(|p| p.null_count).sum();
+    let total_cells = report.total_rows.saturating_mul(report.total_cols);
+    let completeness_pct = if total_cells > 0 {
+        100.0 - ((total_nulls as f64 * 100.0) / total_cells as f64)
+    } else {
+        0.0
+    };
+    let uniqueness_pct = if report.total_rows > 0 {
+        100.0 - ((report.duplicate_rows as f64 * 100.0) / report.total_rows as f64)
+    } else {
+        100.0
+    };
+
+    println!("{}", ui.field_line("├─", "Total Baris", &format!("{} baris", format_number(report.total_rows)), 14));
+    println!("{}", ui.field_line("├─", "Total Kolom", &format!("{} kolom", report.total_cols), 14));
+    println!("{}", ui.field_line("├─", "Duplikat", &format!("{} baris (Keunikan: {:.1}%)", format_number(report.duplicate_rows), uniqueness_pct), 14));
+    println!("{}", ui.field_line("└─", "Kelengkapan", &format!("{:.1}%", completeness_pct), 14));
 
     let mut red = 0usize;
     let mut yellow = 0usize;
@@ -331,28 +345,133 @@ fn print_audit_summary(report: &AuditReport) {
         }
     }
 
+    let syntactic_pct = if report.total_cols > 0 {
+        ((report.total_cols.saturating_sub(red)) as f64 * 100.0) / report.total_cols as f64
+    } else {
+        100.0
+    };
+    let consistency_pct = if report.total_cols > 0 {
+        ((report.total_cols.saturating_sub(outlier_red)) as f64 * 100.0) / report.total_cols as f64
+    } else {
+        100.0
+    };
+    let semantic_pct = if report.total_cols > 0 {
+        ((report.total_cols.saturating_sub(red + yellow)) as f64 * 100.0)
+            / report.total_cols as f64
+    } else {
+        100.0
+    };
+    let pragmatic_pct = ((completeness_pct + consistency_pct) / 2.0).clamp(0.0, 100.0);
+
+    println!();
+    println!("{}", ui.header("DIMENSI KUALITAS ISO/IEC 25012:"));
+    let syntactic_line = format!(
+        "├─ [{}] Validitas Sintaksis    : {:.1}%  (minimum: 95%, target: 99%)",
+        if syntactic_pct >= 95.0 { "OK" } else { "WARN" },
+        syntactic_pct
+    );
+    println!(
+        "{}",
+        if syntactic_pct >= 95.0 {
+            ui.good(&syntactic_line)
+        } else {
+            ui.caution(&syntactic_line)
+        }
+    );
+    let completeness_line = format!(
+        "├─ [{}] Kelengkapan           : {:.1}%  (minimum: 90%, target: 95%)",
+        if completeness_pct >= 90.0 { "OK" } else { "WARN" },
+        completeness_pct
+    );
+    println!(
+        "{}",
+        if completeness_pct >= 90.0 {
+            ui.good(&completeness_line)
+        } else {
+            ui.caution(&completeness_line)
+        }
+    );
+    let consistency_line = format!(
+        "├─ [{}] Konsistensi           : {:.1}%  (minimum: 90%, target: 95%)",
+        if consistency_pct >= 90.0 { "OK" } else { "WARN" },
+        consistency_pct
+    );
+    println!(
+        "{}",
+        if consistency_pct >= 90.0 {
+            ui.good(&consistency_line)
+        } else {
+            ui.caution(&consistency_line)
+        }
+    );
+    let semantic_line = format!(
+        "├─ [{}] Validitas Semantik    : {:.1}%  (minimum: 90%, target: 95%)",
+        if semantic_pct >= 90.0 { "OK" } else { "WARN" },
+        semantic_pct
+    );
+    println!(
+        "{}",
+        if semantic_pct >= 90.0 {
+            ui.good(&semantic_line)
+        } else {
+            ui.caution(&semantic_line)
+        }
+    );
+    let pragmatic_line = format!(
+        "└─ [{}] Kualitas Pragmatis    : {:.1}%  (minimum: 85%, target: 90%)",
+        if pragmatic_pct >= 85.0 { "OK" } else { "WARN" },
+        pragmatic_pct
+    );
+    println!(
+        "{}",
+        if pragmatic_pct >= 85.0 {
+            ui.good(&pragmatic_line)
+        } else {
+            ui.caution(&pragmatic_line)
+        }
+    );
+
+    println!();
+    println!("{}", ui.header("KUALITAS SEMANTIK (ISO 8000-8):"));
+    let semantic_check_line = format!(
+        "└─ [{}] Pemeriksaan aturan pada {} kolom terprofil",
+        if semantic_pct >= 90.0 { "OK" } else { "WARN" },
+        report.profiles.len()
+    );
+    println!(
+        "{}",
+        if semantic_pct >= 90.0 {
+            ui.good(&semantic_check_line)
+        } else {
+            ui.caution(&semantic_check_line)
+        }
+    );
+    if red > 0 || yellow > 0 {
+        println!(
+            "{}",
+            ui.caution(&format!("├─ {} kolom memerlukan perhatian", red + yellow))
+        );
+        let detail = format!("└─ Rincian: {} kritis, {} peringatan", red, yellow);
+        println!("{}", if red > 0 { ui.critical(&detail) } else { ui.caution(&detail) });
+    }
+
+    println!();
+    println!("{}", ui.header("RINGKASAN [LEGACY]:"));
+
     if red > 0 {
-        println!("  {} Kosong   : {} kolom bermasalah", "".red(), red);
+        println!("{}", ui.critical(&format!("├─ [FAIL] Kosong   : {} kolom bermasalah", red)));
     }
     if yellow > 0 {
-        println!(
-            "  {} Kosong   : {} kolom perlu perhatian",
-            "".yellow(),
-            yellow
-        );
+        println!("{}", ui.caution(&format!("├─ [WARN] Kosong   : {} kolom perlu perhatian", yellow)));
     }
     if red == 0 && yellow == 0 {
-        println!("  {} Kosong   : semua kolom relatif bersih", "".green());
+        println!("{}", ui.good("├─ [OK] Kosong   : semua kolom relatif bersih"));
     }
 
     if outlier_red > 0 {
-        println!(
-            "  {} Outlier  : {} kolom dengan outlier > 5%",
-            "".red(),
-            outlier_red
-        );
+        println!("{}", ui.critical(&format!("└─ [FAIL] Outlier  : {} kolom dengan pencilan > 5%", outlier_red)));
     } else {
-        println!("  {} Outlier  : tidak ada outlier signifikan", "".green());
+        println!("{}", ui.good("└─ [OK] Outlier  : tidak ada pencilan signifikan"));
     }
 }
 

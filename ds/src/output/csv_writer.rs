@@ -84,6 +84,7 @@ pub fn split_payload_and_audit_tables(
 		"duplikat_id_berbeda", "tanggal_diluar_range", "perlu_review_manual",
 		"price_outlier_iqr", "retention_count", "cleaned_at", "alasan_karantina",
 		"jumlah_alasan_karantina", "severity_karantina", "skor_severity_karantina",
+		"quality_flag",
 	];
 
 	let mut audit_cols: Vec<String> = df
@@ -91,7 +92,9 @@ pub fn split_payload_and_audit_tables(
 		.iter()
 		.filter_map(|c| {
 			let low = c.to_ascii_lowercase();
-			if low.starts_with("is_outlier_") || audit_exact.contains(&low.as_str()) {
+			if low.starts_with("is_outlier_")
+				|| low.starts_with("outlier_flag_")
+				|| audit_exact.contains(&low.as_str()) {
 				Some((*c).to_string())
 			} else {
 				None

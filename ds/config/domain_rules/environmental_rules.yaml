@@ -1,0 +1,65 @@
+name: Environmental Data Quality Rules
+version: 1.0.0
+domain: Air Quality & Environmental Monitoring
+
+measurements:
+  aqi:
+    name: "Air Quality Index"
+    range: [0, 500]
+    severity_levels:
+      good:
+        range: [0, 50]
+        advice: "Air quality is satisfactory"
+      moderate:
+        range: [51, 100]
+        advice: "Acceptable air quality"
+      unhealthy_for_sensitive_groups:
+        range: [101, 150]
+        advice: "Sensitive groups should limit outdoor exposure"
+      unhealthy:
+        range: [151, 200]
+        advice: "General public should limit outdoor exposure"
+      very_unhealthy:
+        range: [201, 300]
+        advice: "Avoid outdoor activities"
+      hazardous:
+        range: [301, 500]
+        advice: "Health alert - stay indoors"
+
+  pm25:
+    name: "PM2.5 Concentration"
+    unit: "µg/m³"
+    thresholds:
+      good: 12
+      moderate: 35
+      unhealthy_for_sensitive: 55
+      unhealthy: 150
+      very_unhealthy: 250
+
+  temperature:
+    name: "Temperature"
+    unit: "°C"
+    valid_range: [-50, 60]
+    warning_range: [-30, 50]
+
+validation_rules:
+  - rule_id: "ENV001"
+    description: "AQI value must be within 0-500"
+    severity: "CRITICAL"
+  
+  - rule_id: "ENV002"
+    description: "PM2.5 should not exceed 500"
+    severity: "HIGH"
+  
+  - rule_id: "ENV003"
+    description: "Temperature reading should be realistic"
+    severity: "MEDIUM"
+  
+  - rule_id: "ENV004"
+    description: "All measurements must have timestamp"
+    severity: "CRITICAL"
+
+completeness:
+  minimum_required_fields: ["timestamp", "aqi", "station"]
+  warn_if_missing_pct_above: 2.0
+  fail_if_missing_pct_above: 10.0

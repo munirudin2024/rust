@@ -1,0 +1,9 @@
+[imputation]
+# Ambang minimum confidence untuk menerima hasil imputasi otomatis.
+min_confidence = 0.80
+
+# Opsi: "fill_with_flag" | "null" | "quarantine" | "missing_verified"
+below_threshold_action = "fill_with_flag"
+
+# Toleransi persen untuk validasi formula (dipakai lintas deployment).
+tolerance_pct = 1.0

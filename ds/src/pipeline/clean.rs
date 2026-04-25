@@ -91,6 +91,7 @@ pub fn deduplicate_cross_id(df: DataFrame) -> Result<DedupResult> {
 		let low = n.to_ascii_lowercase();
 		if *n == id_name.as_str()
 			|| low.starts_with("is_outlier_")
+			|| low.starts_with("outlier_flag_")
 			|| skip.contains(&low.as_str()) { None }
 		else { Some((*n).to_string()) }
 	}).collect();
@@ -190,7 +191,14 @@ pub fn refresh_post_dedup_flags(df: &mut DataFrame) -> Result<()> {
 
 	if has_review {
 		let risk: Vec<Option<bool>> = (0..df.height()).map(|i| {
-			let bad = ["Qty_Ekstrem", "Revenue_Anomali", "Duplikat_ID_Berbeda", "Harga_Satuan_Kosong_Awal"]
+			let bad = [
+				"Qty_Ekstrem",
+				"Revenue_Anomali",
+				"Duplikat_ID_Berbeda",
+				"Harga_Satuan_Kosong_Awal",
+				"Low_Confidence_Imputation",
+				"MISSING_VERIFIED",
+			]
 				.iter()
 				.any(|cn| df.column(cn).ok()
 					.and_then(|s| s.get(i).ok())

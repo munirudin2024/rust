@@ -1,4 +1,5 @@
 use reqwest::Client;
+use crate::terminal_ui::TerminalStyle;
 use serde_json::json;
 use std::env;
 use std::fs;
@@ -234,16 +235,17 @@ fn write_quick_link_file(
 }
 
 fn print_quick_link_summary(cfg: &LookerAutoConfig, quick_link: &str) {
-    println!("\n✅ PIPELINE SELESAI!");
-    println!("--------------------------------------------------");
-    println!("📂 CSV Cleaned : {}", cfg.clean_csv_path);
+    let ui = TerminalStyle::detect();
+    println!("\n{}", ui.success("PIPELINE SELESAI"));
+    println!("{}", ui.divider(50));
+    println!("CSV Cleaned : {}", cfg.clean_csv_path);
     println!(
-        "🌐 HTML Report : {}",
+        "HTML Report : {}",
         cfg.report_json_path.replace("report_data.json", "report.html")
     );
-    println!("🚀 BigQuery    : Terunggah ke project {}", cfg.project_id);
-    println!("--------------------------------------------------");
-    println!("📊 BUAT DASHBOARD LOOKER STUDIO SEKARANG:");
-    println!("{}", quick_link);
-    println!("--------------------------------------------------");
+    println!("BigQuery    : Terunggah ke project {}", cfg.project_id);
+    println!("{}", ui.divider(50));
+    println!("{}", ui.header("BUAT DASHBOARD LOOKER STUDIO SEKARANG:"));
+    println!("{}", ui.info(quick_link));
+    println!("{}", ui.divider(50));
 }

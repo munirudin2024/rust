@@ -1,0 +1,65 @@
+{
+  "standard": "ISO 8000-110",
+  "version": "1.0",
+  "domain": "environmental_air_quality",
+  "fields": {
+    "No": {"type": "integer", "required": true, "range": [1, 999999]},
+    "year": {"type": "integer", "required": true, "range": [2013, 2025]},
+    "month": {"type": "integer", "required": true, "range": [1, 12]},
+    "day": {"type": "integer", "required": true, "range": [1, 31]},
+    "hour": {"type": "integer", "required": true, "range": [0, 23]},
+    "PM2.5": {"type": "float", "unit": "ug/m3", "range": [0, 999], "source": "sensor"},
+    "PM10": {"type": "float", "unit": "ug/m3", "range": [0, 999], "source": "sensor"},
+    "SO2": {"type": "float", "unit": "ug/m3", "range": [0, 500], "source": "sensor"},
+    "NO2": {"type": "float", "unit": "ug/m3", "range": [0, 300], "source": "sensor"},
+    "CO": {"type": "float", "unit": "mg/m3", "range": [0, 50], "source": "sensor"},
+    "O3": {"type": "float", "unit": "ug/m3", "range": [0, 500], "source": "sensor"},
+    "TEMP": {"type": "float", "unit": "celsius", "range": [-40, 50], "source": "sensor"},
+    "PRES": {"type": "float", "unit": "hPa", "range": [800, 1100], "source": "sensor"},
+    "DEWP": {"type": "float", "unit": "celsius", "range": [-50, 40], "source": "sensor"},
+    "RAIN": {"type": "float", "unit": "mm", "range": [0, 999], "source": "sensor"},
+    "wd": {
+      "type": "string",
+      "enum": ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
+      "required": false
+    },
+    "WSPM": {"type": "float", "unit": "m/s", "range": [0, 50], "source": "sensor"},
+    "station": {
+      "type": "string",
+      "required": true,
+      "enum": [
+        "Aotizhongxin",
+        "Changping",
+        "Dingling",
+        "Dongsi",
+        "Guanyuan",
+        "Gucheng",
+        "Huairou",
+        "Nongzhanguan",
+        "Shunyi",
+        "Tiantan",
+        "Wanliu",
+        "Wanshouxigong"
+      ]
+    }
+  },
+  "temporal_rules": {
+    "timestamp_format": "ISO 8601",
+    "future_date_check": true,
+    "sequential_check": true
+  },
+  "cross_field_rules": [
+    {"condition": "RAIN > 0", "implication": "DEWP > TEMP - 5", "severity": "warning"},
+    {"condition": "TEMP < 0", "implication": "RAIN == 0 OR RAIN is null", "severity": "error"}
+  ],
+  "outlier_config": {
+    "method": "winsorizing",
+    "threshold": "1.5_iqr",
+    "domain_adjustments": {
+      "PM2.5": {"upper_cap": 600, "justification": "haze_event_valid"},
+      "CO": {"upper_cap": 10, "justification": "traffic_jam_valid"},
+      "RAIN": {"upper_cap": 100, "justification": "monsoon_valid"}
+    },
+    "require_manual_review": true
+  }
+}

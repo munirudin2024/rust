@@ -1,0 +1,47 @@
+{
+  "iso8000_compliance": {
+    "minimum_score": 80.0,
+    "critical_threshold": 70.0,
+    "warning_threshold": 60.0
+  },
+  "iso25012_dimensions": {
+    "accuracy": {
+      "target": 95.0,
+      "threshold": 80.0
+    },
+    "completeness": {
+      "target": 98.0,
+      "threshold": 90.0
+    },
+    "consistency": {
+      "target": 95.0,
+      "threshold": 85.0
+    },
+    "timeliness": {
+      "target": 100.0,
+      "threshold": 90.0
+    },
+    "validity": {
+      "target": 99.0,
+      "threshold": 95.0
+    },
+    "uniqueness": {
+      "target": 99.5,
+      "threshold": 95.0
+    },
+    "conformity": {
+      "target": 95.0,
+      "threshold": 85.0
+    },
+    "integrity": {
+      "target": 99.0,
+      "threshold": 95.0
+    }
+  },
+  "imputation": {
+    "max_missing_pct_before_warning": 5.0,
+    "max_missing_pct_before_critical": 15.0,
+    "prefer_strategy": "median",
+    "confidence_threshold": 0.75
+  }
+}

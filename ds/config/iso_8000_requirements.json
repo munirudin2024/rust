@@ -1,0 +1,365 @@
+{
+  "metadata": {
+    "standard": "ISO 8000-110:2023",
+    "version": "1.0.0",
+    "generated_at": "2026-04-19T18:26:00Z",
+    "certification_target": "ISO 8000 Level 4",
+    "pipeline_version": "0.3.0-iso"
+  },
+  
+  "global_settings": {
+    "confidence_threshold": 0.8,
+    "imputation_default": "median_with_confidence",
+    "outlier_method": "winsorizing_iqr_1.5",
+    "audit_level": "full",
+    "traceability": "complete_chain"
+  },
+
+  "domains": {
+    "environmental_air_quality": {
+      "description": "Beijing PRSA Air Quality Monitoring Network",
+      "source_agency": "Beijing Municipal Environmental Protection Bureau",
+      "measurement_standard": "HJ 653-2013 (China EPA)",
+      "iso_equivalent": "ISO 11222:2019",
+      
+      "fields": {
+        "PM2.5": {
+          "iso25012_dimensions": ["accuracy", "completeness", "consistency"],
+          "physical_constraints": {
+            "min": 0,
+            "max": 999,
+            "unit": "μg/m³",
+            "precision": 0.1,
+            "accuracy_spec": "±15% or ±10μg/m³ whichever is larger"
+          },
+          "business_rules": [
+            {
+              "id": "ENV-R001",
+              "description": "PM2.5 must be less than PM10",
+              "type": "hard_constraint",
+              "physical_law": "PM10 includes PM2.5 as subset",
+              "violation_action": "flag_invalid",
+              "confidence_penalty": 0.0
+            },
+            {
+              "id": "ENV-R002", 
+              "description": "Winter heating season PM2.5 elevation valid",
+              "type": "seasonal_context",
+              "condition": "month IN [11,12,1,2,3] AND PM2.5 > 150",
+              "validation": "acceptable_with_annotation",
+              "confidence_adjustment": 0.9
+            },
+            {
+              "id": "ENV-R003",
+              "description": "Rain correlates with PM2.5 reduction",
+              "type": "correlation_context",
+              "condition": "RAIN > 0 AND PM2.5 > 200",
+              "validation": "suspect_require_review",
+              "confidence_penalty": 0.3
+            }
+          ],
+          "imputation": {
+            "primary_method": "seasonal_interpolation_24h",
+            "fallback_method": "temporal_neighbor_mean",
+            "confidence_calculation": "based_on_temporal_proximity",
+            "max_gap_hours": 72,
+            "uncertainty_propagation": true
+          },
+          "outlier_handling": {
+            "statistical_method": "iqr_1.5",
+            "domain_cap_min": 0,
+            "domain_cap_max": 999,
+            "extreme_value_annotation": "sensor_saturation_possible",
+            "manual_review_threshold": "value > 500 AND confidence < 0.7"
+          }
+        },
+
+        "PM10": {
+          "physical_constraints": {
+            "min": 0,
+            "max": 999,
+            "unit": "μg/m³",
+            "must_be_greater_than": ["PM2.5"]
+          },
+          "business_rules": [
+            {
+              "id": "ENV-R004",
+              "description": "PM10 >= PM2.5 always",
+              "type": "hard_constraint",
+              "violation_action": "auto_correct_or_flag",
+              "correction_logic": "swap_if_inverted_or_flag_both"
+            }
+          ]
+        },
+
+        "TEMP": {
+          "physical_constraints": {
+            "min": -40,
+            "max": 50,
+            "unit": "celsius",
+            "diurnal_max_variation": 15
+          },
+          "business_rules": [
+            {
+              "id": "ENV-R005",
+              "description": "Temperature must exceed dew point",
+              "type": "thermodynamic_constraint",
+              "condition": "TEMP <= DEWP",
+              "violation_action": "flag_physical_impossibility",
+              "confidence_penalty": 0.0
+            }
+          ],
+          "imputation": {
+            "primary_method": "linear_interpolation",
+            "rationale": "Temperature changes gradually",
+            "max_gap_hours": 6
+          }
+        },
+
+        "DEWP": {
+          "physical_constraints": {
+            "min": -50,
+            "max": 40,
+            "unit": "celsius",
+            "must_be_less_than": ["TEMP"]
+          }
+        },
+
+        "RAIN": {
+          "physical_constraints": {
+            "min": 0,
+            "max": 999,
+            "unit": "mm"
+          },
+          "business_rules": [
+            {
+              "id": "ENV-R006",
+              "description": "Freezing rain rare but possible",
+              "type": "context_aware",
+              "condition": "RAIN > 0 AND TEMP < 0",
+              "validation": "acceptable_with_low_confidence",
+              "confidence_adjustment": 0.6
+            }
+          ],
+          "imputation": {
+            "primary_method": "forward_fill_limited",
+            "max_fill_hours": 2,
+            "rationale": "Preserve precipitation event continuity"
+          }
+        },
+
+        "CO": {
+          "physical_constraints": {
+            "min": 0,
+            "max": 50,
+            "unit": "mg/m³"
+          },
+          "business_rules": [
+            {
+              "id": "ENV-R007",
+              "description": "Traffic hour correlation",
+              "type": "diurnal_pattern",
+              "peak_hours": [7,8,9,17,18,19],
+              "expected_elevation": 1.5,
+              "confidence_adjustment": 0.85
+            }
+          ]
+        }
+      },
+
+      "composite_indices": {
+        "Kategori_AQI": {
+          "calculation_method": "max_sub_index",
+          "breakpoints": {
+            "PM2.5": [0, 35, 75, 115, 150, 250, 500],
+            "PM10": [0, 50, 150, 250, 350, 420, 600],
+            "labels": ["Good","Moderate","Unhealthy_Sensitive","Unhealthy","Very_Unhealthy","Hazardous"]
+          },
+          "iso25012_mapping": "derived_accuracy"
+        },
+        "Musim_Polusi": {
+          "calculation_method": "temporal_classification",
+          "rules": [
+            {"months": [11,12,1,2,3], "label": "Heating_Season", "expected_PM2.5_elevation": true},
+            {"months": [6,7,8], "label": "Summer_Low", "expected_O3_elevation": true}
+          ]
+        },
+        "Pola_Diurnal": {
+          "calculation_method": "hour_classification",
+          "traffic_peak": [7,8,9,17,18,19],
+          "night_low": [0,1,2,3,4,5]
+        },
+        "Indeks_Cuaca": {
+          "calculation_method": "weighted_composite",
+          "components": {
+            "TEMP": 0.3,
+            "PRES": 0.2,
+            "DEWP": 0.2,
+            "RAIN": 0.3
+          }
+        }
+      }
+    },
+
+    "retail_ecommerce": {
+      "description": "E-commerce transaction records",
+      "source_type": "transactional_database",
+      
+      "fields": {
+        "transaction_id": {
+          "iso25012_dimensions": ["uniqueness", "traceability"],
+          "constraints": {
+            "unique": true,
+            "non_null": true,
+            "format": "alphanumeric"
+          },
+          "business_rules": [
+            {
+              "id": "RET-R001",
+              "description": "Transaction ID must be unique",
+              "type": "hard_constraint",
+              "violation_action": "deduplicate_or_flag",
+              "deduplication_logic": "keep_latest_timestamp"
+            }
+          ]
+        },
+
+        "quantity": {
+          "physical_constraints": {
+            "min": 1,
+            "max": 10000,
+            "type": "integer"
+          }
+        },
+
+        "price": {
+          "physical_constraints": {
+            "min": 0.01,
+            "max": 1000000,
+            "precision": 2,
+            "currency": "local"
+          }
+        },
+
+        "revenue": {
+          "iso25012_dimensions": ["consistency", "accuracy"],
+          "business_rules": [
+            {
+              "id": "RET-R002",
+              "description": "Revenue must equal quantity × price",
+              "type": "hard_constraint",
+              "formula": "revenue == quantity * price",
+              "tolerance": 0.01,
+              "violation_action": "auto_correct_or_flag",
+              "correction_logic": "recalculate_from_components"
+            },
+            {
+              "id": "RET-R003",
+              "description": "High value transaction flag",
+              "type": "business_rule",
+              "condition": "revenue > 10000",
+              "validation": "flag_for_verification",
+              "confidence_adjustment": 0.7
+            }
+          ]
+        },
+
+        "rating": {
+          "physical_constraints": {
+            "type": "integer",
+            "enum": [1, 2, 3, 4, 5],
+            "nullable": true
+          },
+          "business_rules": [
+            {
+              "id": "RET-R004",
+              "description": "Rating must be 1-5 stars",
+              "type": "enum_constraint",
+              "violation_action": "flag_invalid",
+              "out_of_range_values": "clamp_or_null"
+            }
+          ]
+        },
+
+        "transaction_date": {
+          "iso25012_dimensions": ["currentness", "accuracy"],
+          "business_rules": [
+            {
+              "id": "RET-R005",
+              "description": "Transaction date cannot be future",
+              "type": "temporal_constraint",
+              "condition": "date > today",
+              "violation_action": "flag_invalid",
+              "confidence_penalty": 0.0
+            },
+            {
+              "id": "RET-R006",
+              "description": "Transaction date not too old",
+              "type": "staleness_check",
+              "max_age_days": 365,
+              "violation_action": "flag_stale"
+            }
+          ]
+        }
+      },
+
+      "composite_features": {
+        "Pendapatan_Per_Transaksi": {
+          "calculation": "revenue / quantity",
+          "type": "derived_metric"
+        },
+        "Revenue_Anomali": {
+          "detection_method": "iqr_outlier",
+          "threshold": 1.5,
+          "condition": "revenue > Q3 + 1.5*IQR"
+        },
+        "Rating_Tidak_Valid": {
+          "calculation": "rating NOT IN [1,2,3,4,5] OR rating IS NULL",
+          "type": "boolean_flag"
+        }
+      }
+    }
+  },
+
+  "quality_thresholds": {
+    "completeness": {
+      "minimum": 0.95,
+      "target": 0.99,
+      "measurement": "non_null_ratio"
+    },
+    "consistency": {
+      "minimum": 0.95,
+      "target": 0.99,
+      "measurement": "cross_field_validation_pass_rate"
+    },
+    "accuracy": {
+      "minimum": 0.90,
+      "target": 0.95,
+      "measurement": "domain_rule_compliance"
+    },
+    "syntactic_validity": {
+      "minimum": 0.99,
+      "target": 0.999,
+      "measurement": "format_type_compliance"
+    },
+    "semantic_validity": {
+      "minimum": 0.90,
+      "target": 0.95,
+      "measurement": "business_rule_compliance"
+    },
+    "pragmatic_quality": {
+      "minimum": 0.85,
+      "target": 0.90,
+      "measurement": "fit_for_purpose_score"
+    }
+  },
+
+  "audit_configuration": {
+    "format": "ISO_8000_61",
+    "traceability_level": "field_level",
+    "provenance_tracking": true,
+    "uncertainty_quantification": true,
+    "confidence_intervals": true,
+    "reasoning_preservation": true
+  }
+}
