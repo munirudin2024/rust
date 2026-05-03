@@ -1,19 +1,22 @@
 {
-  "name": "Data Science",
+  "name": "Rust & Hadoop Data Science",
   "image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/rust:1": {}
+    "ghcr.io/devcontainers/features/rust:1": {},
+    "ghcr.io/devcontainers-contrib/features/hadoop:1": {}
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
-        "tamasfe.even-better-toml"
+        "tamasfe.even-better-toml",
+        "mtakaya.vscode-hadoop"
       ]
     }
   },
   "postCreateCommand": "rustup component add rustfmt clippy && cargo install cargo-watch",
-  "forwardPorts": [3000, 8080]
+  "forwardPorts": [3000, 8080, 9870, 8088],
+  "remoteUser": "vscode"
 }
